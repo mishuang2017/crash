@@ -21,6 +21,9 @@
 #include <net/if_arp.h>
 #include <arpa/inet.h>
 
+extern void print_struct(char *, ulong);
+void show_mlx(ulong net_addr);
+
 /*
  *  Cache values we need that can change based on OS version, or any other
  *  variables static to this file.  These are setup in net_init().  Dump 
@@ -1693,4 +1696,473 @@ sym_socket_dump(ulong file,
 	}
 
     	return TRUE;
+}
+
+static ulong
+read_pointer1(ulong addr)
+{
+        ulong buf[1];
+
+        readmem(addr, KVADDR, buf, sizeof(ulong), "addr", FAULT_ON_ERROR);
+
+        return buf[0];
+}
+
+static ulong
+read_pointer2(ulong addr, char *type, char *member)
+{
+        int offset;
+        char *buf;
+        ulong val;
+
+        offset = MEMBER_OFFSET(type, member);
+        buf = malloc(offset+sizeof(ulong));
+
+        if (buf == NULL)
+                return 0;
+
+        readmem(addr, KVADDR, buf, offset + sizeof(ulong), "addr", FAULT_ON_ERROR);
+
+        val =  *((ulong *)&buf[offset]);
+        free(buf);
+
+        return val;
+}
+
+void
+cmd_flow(void)
+{
+	int c;
+	char *addr = NULL;
+	char *ptr;
+	ulong a = 0;
+	struct list_data group, *ld_group;
+	struct list_data fte, *ld_fte;
+	struct list_data rule, *ld_rule;
+	int n1, n2, n3, i1, i2, i3;
+	int show = 1;
+	int no_fte = 0;
+	int dest = 0;
+
+	while ((c = getopt(argcnt, args, "bcd")) != EOF) {
+		switch (c) {
+		case 'b':
+			show = 2;
+		case 'c':
+			no_fte = 1;
+			addr = optarg;
+			break;
+		case 'd':
+			dest = 1;
+			break;
+		default:
+			return;
+		}
+	}
+
+	addr = args[optind];
+	if (addr == NULL) {
+		fprintf(fp, "addr is null\n");
+		return;
+	}
+
+	a = strtoul(addr, &ptr, 16);
+
+	if (!dest) {
+		fprintf(fp, "mlx5_flow_table  %lx -x\n", a);
+	}
+
+	ld_group =  &group;
+	BZERO(ld_group, sizeof(struct list_data));
+	ld_group->flags |= LIST_ALLOCATE;
+
+	ld_group->start = ld_group->end = a + MEMBER_OFFSET("fs_node", "children");
+	ld_group->list_head_offset = 0;
+
+	n1 = do_list(ld_group);
+
+	if (show == 1) {
+		for (i1 = 1; i1 < n1; ++i1) {
+			ulong t1 = ld_group->list_ptr[i1];
+			if (!dest) {
+				fprintf(fp, "\tmlx5_flow_group %lx -x\n", t1);
+			}
+
+			ld_fte =  &fte;
+			BZERO(ld_fte, sizeof(struct list_data));
+			ld_fte->flags |= LIST_ALLOCATE;
+
+			ld_fte->start = ld_fte->end = t1 + MEMBER_OFFSET("fs_node", "children");
+			ld_fte->list_head_offset = 0;
+
+			n2 = do_list(ld_fte);
+			if (!dest) {
+				fprintf(fp, "\t\tfte number: %d\n", n2 - 1);
+			}
+			if (no_fte == 0) {
+				for (i2 = 1; i2 < n2; ++i2) {
+					ulong t2 = ld_fte->list_ptr[i2];
+					if (!dest) {
+						fprintf(fp, "\t\tfs_fte.val,index,action  %lx -x\n", t2);
+					}
+
+					ld_rule =  &rule;
+					BZERO(ld_rule, sizeof(struct list_data));
+					ld_rule->flags |= LIST_ALLOCATE;
+
+					ld_rule->start = ld_rule->end = t2 + MEMBER_OFFSET("fs_node", "children");
+					ld_rule->list_head_offset = 0;
+
+					n3 = do_list(ld_rule);
+
+					int start = 1;
+/* 					for (i3 = 1; i3 < n3; ++i3) { */
+					/* omit flow counter */
+					if (dest)
+						start = 2;
+					for (i3 = start; i3 < n3; ++i3) {
+						ulong t3 = ld_rule->list_ptr[i3];
+						if (!dest) {
+							fprintf(fp, "\t\t\tmlx5_flow_rule.dest_attr %lx -x\n", t3);
+						}
+						if (dest) {
+							ulong dest = t3 + MEMBER_OFFSET("mlx5_flow_rule", "dest_attr");
+							print_struct("mlx5_flow_destination", dest);
+						}
+					}
+				}
+			}
+		}
+	} else if (show == 2) {
+		for (i1 = 1; i1 < n1; ++i1) {
+			ulong t1 = ld_group->list_ptr[i1];
+			fprintf(fp, "\tlist -H %lx -s mlx5_flow_group.mask -x\n", ld_group->list_ptr[0]);
+
+			ld_fte =  &fte;
+			BZERO(ld_fte, sizeof(struct list_data));
+			ld_fte->flags |= LIST_ALLOCATE;
+
+			ld_fte->start = ld_fte->end = t1 + MEMBER_OFFSET("fs_node", "children");
+			ld_fte->list_head_offset = 0;
+
+			n2 = do_list(ld_fte);
+			fprintf(fp, "\t\tfte number: %d\n", n2 - 1);
+			for (i2 = 1; i2 < n2; ++i2) {
+				ulong t2 = ld_fte->list_ptr[i2];
+				fprintf(fp, "\t\tlist -H %lx -s fs_fte.val,index -x\n", ld_fte->list_ptr[0]);
+
+				ld_rule =  &rule;
+				BZERO(ld_rule, sizeof(struct list_data));
+				ld_rule->flags |= LIST_ALLOCATE;
+
+				ld_rule->start = ld_rule->end = t2 + MEMBER_OFFSET("fs_node", "children");
+				ld_rule->list_head_offset = 0;
+
+				n3 = do_list(ld_rule);
+
+/* 				ulong t3 = ld_rule->list_ptr[i3]; */
+				fprintf(fp, "\t\t\tlist -H %lx -s mlx5_flow_rule.dest_attr -x\n", ld_rule->list_ptr[0]);
+			}
+		}
+	}
+
+/* 	FREEBUF(ld_group->list_ptr); */
+/* 	FREEBUF(ld_fte->list_ptr); */
+/* 	FREEBUF(ld_rule->list_ptr); */
+}
+
+void
+cmd_hash(void)
+{
+        int c;
+        char *addr = NULL;
+        char *ptr;
+        ulong a;
+        int show = 0;
+        int i = 0;
+        ulong rhash_head;
+        int offset = 0;
+        char *opt_s = NULL;     /* struct */
+        char *opt_m = NULL;     /* member */
+        int print = 0;
+
+        while ((c = getopt(argcnt, args, "a:s:m:tp")) != EOF) {
+                switch (c) {
+                case 't':       /* for testing */
+                        show = 1;
+                        a = 0xffff8809b254c0c0;
+                        break;
+                case 's':
+                        opt_s = optarg;
+                        break;
+                case 'm':
+                        opt_m = optarg;
+                        break;
+                case 'p':
+                        print = 1;
+                        break;
+                default:
+                        return;
+                }
+        }
+
+        addr = args[optind];
+        if (addr == NULL) {
+                fprintf(fp, "addr is null\n");
+                return;
+        }
+
+        if (!addr || !opt_s || !opt_m) {
+                fprintf(fp, "hash <address of tbl> -s struct -m member\n");
+                return;
+        }
+
+        if (show != 1)
+                a = strtoul(addr, &ptr, 16);
+
+        a = read_pointer1(a);
+        fprintf(fp, "bucket_table %lx -x\n", a);
+
+        unsigned int size = read_pointer2(a, "bucket_table", "size");
+        ulong buckets = a + MEMBER_OFFSET("bucket_table", "buckets");
+
+        offset = MEMBER_OFFSET(opt_s, opt_m);
+
+        fprintf(fp, "size %x, offset %x\n", size, offset);
+        fprintf(fp, "buckets %lx\n", buckets);
+
+        for (i = 0; i < size; i++) {
+                rhash_head = read_pointer1(buckets + i * 8);
+                if (rhash_head == i * 2 + 1 || rhash_head == 1)
+                        continue;
+                if (print)
+                        print_struct(opt_s, rhash_head - offset);
+                else
+                        fprintf(fp, "%s %lx\n", opt_s, rhash_head - offset);
+        }
+}
+
+void show_mlx(ulong net_addr)
+{
+        int ofed = 0;
+	ulong mlx5e_priv = net_addr + SIZE(net_device);
+
+	struct new_utsname *uts;
+	uts = &kt->utsname;
+	if (strncmp(uts->release, "3.10.0-327.el7.x86_64", 6) == 0) {
+		ofed = 1;
+		fprintf(fp, "%s\n", uts->release);
+	}
+
+
+	fprintf(fp, "mlx5e_priv  %lx\n", mlx5e_priv);
+
+	/*
+	 * struct mlx5e_vxlan {
+	 *   udp_port = 0x12b5
+	 * }
+	 */
+	ulong vxlan = mlx5e_priv +  MEMBER_OFFSET("mlx5e_priv", "vxlan") +  MEMBER_OFFSET("mlx5e_vxlan_db", "tree");
+	fprintf(fp, "tree -t ra %lx -s mlx5e_vxlan\n", vxlan);
+
+	ulong fs = mlx5e_priv + MEMBER_OFFSET("mlx5e_priv", "fs");
+	fprintf(fp, "mlx5e_flow_steering  %lx\n", fs);
+
+	ulong tc = fs + MEMBER_OFFSET("mlx5e_flow_steering", "tc");
+	fprintf(fp, "mlx5e_tc_table  %lx\n", tc);
+/* 	ulong ht = read_pointer2(tc, "mlx5e_tc_table", "ht"); */
+	/* for old kernel before 4.17.0-rc3+ */
+/* 	fprintf(fp, "hash %lx -s mlx5e_tc_flow -m node\n", ht); */
+	/* mlx5e_tc_flow.cookie the address of cls_fl_filter */
+
+	ulong  ppriv = read_pointer2(mlx5e_priv, "mlx5e_priv", "ppriv");
+/* 	fprintf(fp, "mlx5_eswitch_rep  %lx\n", ppriv); */
+
+	/* in VM/VF, ppriv is NULL */
+	if (ppriv != 0) {
+		fprintf(fp, "mlx5e_rep_priv  %lx\n", ppriv);
+		ulong neigh_update = ppriv + MEMBER_OFFSET("mlx5e_rep_priv", "neigh_update");
+		fprintf(fp, "mlx5e_neigh_update_table  %lx\n", neigh_update);
+		ulong neigh_list = neigh_update + MEMBER_OFFSET("mlx5e_neigh_update_table", "neigh_list");
+		fprintf(fp, "list -H %lx -l mlx5e_neigh_hash_entry.neigh_list -s mlx5e_neigh_hash_entry\n", neigh_list);
+		ulong neigh_ht = neigh_update + MEMBER_OFFSET("mlx5e_neigh_update_table", "neigh_ht");
+		fprintf(fp, "hash %lx -s mlx5e_neigh_hash_entry -m rhash_node\n", neigh_ht);
+
+		ulong rep = read_pointer2(ppriv, "mlx5e_rep_priv", "rep");
+		fprintf(fp, "mlx5_eswitch_rep  %lx\n", rep);
+		fprintf(fp, "mlx5_eswitch_rep  %lx\n", rep + STRUCT_SIZE("mlx5_eswitch_rep"));
+		fprintf(fp, "mlx5_eswitch_rep  %lx\n", rep + STRUCT_SIZE("mlx5_eswitch_rep") * 2);
+
+		if (ofed == 0) {
+			ulong mlx5e_rep_priv = read_pointer2(rep, "mlx5_eswitch_rep_if", "priv");
+			fprintf(fp, "mlx5e_rep_priv  %lx\n", mlx5e_rep_priv);
+			ulong ht = mlx5e_rep_priv + MEMBER_OFFSET("mlx5e_rep_priv", "tc_ht");
+			fprintf(fp, "hash %lx -s mlx5e_tc_flow -m node\n", ht);
+		}
+	}
+
+	ulong mdev = read_pointer2(mlx5e_priv, "mlx5e_priv", "mdev");
+	fprintf(fp, "mlx5_core_dev  %lx\n", mdev);
+
+	ulong mlx5_priv = mdev + MEMBER_OFFSET("mlx5_core_dev", "priv");
+	fprintf(fp, "mlx5_priv  %lx\n", mlx5_priv);
+
+	ulong mlx5_flow_steering = read_pointer2(mlx5_priv, "mlx5_priv", "steering");
+	fprintf(fp, "mlx5_flow_steering  %lx\n", mlx5_flow_steering);
+
+	ulong fdb_root_fs = read_pointer2(mlx5_flow_steering, "mlx5_flow_steering", "fdb_root_ns");
+	fprintf(fp, "fdb_root_fs\n");
+	fprintf(fp, "mlx5_flow_root_namespace  %lx\n", fdb_root_fs);
+	fprintf(fp, "list -H %lx -s fs_prio\n", fdb_root_fs + 0x10);
+
+	ulong root_fs = read_pointer2(mlx5_flow_steering, "mlx5_flow_steering", "root_ns");
+	fprintf(fp, "root_fs\n");
+	fprintf(fp, "mlx5_flow_root_namespace  %lx\n", root_fs);
+	fprintf(fp, "list -H %lx -s fs_prio.num_levels,start_level,prio,num_ft\n", root_fs + 0x10);
+
+	ulong mlx5_lag = read_pointer2(mlx5_priv, "mlx5_priv", "lag");
+	fprintf(fp, "mlx5_lag  %lx\n", mlx5_lag);
+
+	ulong fc_stats = mlx5_priv + MEMBER_OFFSET("mlx5_priv", "fc_stats");
+	fprintf(fp, "mlx5_fc_stats  %lx\n", fc_stats);
+	fprintf(fp, "tree -t rbtree -r mlx5_fc.node %lx -o 0 -s mlx5_fc.lastpackets,lastbytes\n", fc_stats);
+
+	ulong eq_table = mlx5_priv + MEMBER_OFFSET("mlx5_priv", "eq_table");
+	fprintf(fp, "mlx5_eq_table  %lx\n", eq_table);
+
+	ulong eqs_list = eq_table + MEMBER_OFFSET("mlx5_eq_table", "comp_eqs_list");
+	fprintf(fp, "list -H %lx -o mlx5_eq.list -s mlx5_eq\n", eqs_list);
+
+	ulong esw = read_pointer2(mlx5_priv, "mlx5_priv", "eswitch");
+	if (esw) {
+		fprintf(fp, "mlx5_eswitch  %lx\n", esw);
+
+		ulong offloads = esw + MEMBER_OFFSET("mlx5_eswitch", "offloads");
+		fprintf(fp, "mlx5_esw_offload  %lx\n", offloads);
+		fprintf(fp, "mlx5_esw_offload.num_flows,encap  %lx\n", offloads);
+		fprintf(fp, "repeat -1 mlx5_esw_offload.num_flows -d %lx\n", offloads);
+
+		ulong vport_to_tir = read_pointer2(offloads, "mlx5_esw_offload", "ft_offloads");
+		fprintf(fp, "flow %lx\n", vport_to_tir);
+
+		ulong encap_tbl = offloads + MEMBER_OFFSET("mlx5_esw_offload", "encap_tbl");
+		fprintf(fp, "encap_tbl  %lx\n", encap_tbl);
+		fprintf(fp, "list 0xffff8810325d8200 -o 0x30 -s mlx5e_encap_entry\n");
+
+		ulong mlx5_eswitch_fdb = esw + MEMBER_OFFSET("mlx5_eswitch", "fdb_table");
+		fprintf(fp, "mlx5_eswitch_fdb  %lx\n\n", mlx5_eswitch_fdb);
+
+		ulong fdb_table = read_pointer1(mlx5_eswitch_fdb);
+		ulong fwd_table = read_pointer1(mlx5_eswitch_fdb + 8);
+		fprintf(fp, "flow %lx\n", fdb_table);
+		fprintf(fp, "fwd_table\n");
+		fprintf(fp, "flow %lx\n\n", fwd_table);
+		fprintf(fp, "flow -c %lx\n", fdb_table);
+		fprintf(fp, "repeat -1 flow -c %lx\n", fdb_table);
+		fprintf(fp, "flow %lx -d\n", fdb_table);
+	}
+
+	ulong  qdisc = read_pointer2(net_addr, "net_device", "qdisc");
+	fprintf(fp, "Qdisc  %lx\n", qdisc);
+
+	ulong  txq = read_pointer2(qdisc, "Qdisc", "dev_queue");
+	fprintf(fp, "tx-0, net_device._tx\n");
+	fprintf(fp, "netdev_queue  %lx\n", txq);
+
+	ulong channels = mlx5e_priv + MEMBER_OFFSET("mlx5e_priv", "channels");
+	fprintf(fp, "mlx5e_channels  %lx\n", channels);
+
+	ulong channel1 = read_pointer1(channels);
+	channel1 = read_pointer1(channel1);
+	fprintf(fp, "mlx5e_channel.sq  %lx\n", channel1);
+
+	ulong sq = channel1 + MEMBER_OFFSET("mlx5e_channel", "sq");
+	fprintf(fp, "mlx5e_txqsq  %lx\n", sq);
+
+	ulong rq = channel1 + MEMBER_OFFSET("mlx5e_channel", "rq");
+	fprintf(fp, "mlx5e_rq  %lx\n", rq);
+
+	ulong  ingress_queue = read_pointer2(net_addr, "net_device", "ingress_queue");
+	fprintf(fp, "net_device.ingress_queue\n");
+	fprintf(fp, "netdev_queue  %lx\n", ingress_queue);
+
+	// for centos 7.2
+	if (ofed == 1 && ingress_queue) {
+		fprintf(fp, "for centos 7.2\n");
+		ulong qdisc_sleep = read_pointer2(ingress_queue, "netdev_queue", "qdisc_sleeping");
+		fprintf(fp, "Qdisc %lx\n", qdisc_sleep);
+		ulong ingress_qdisc_data = qdisc_sleep + STRUCT_SIZE("Qdisc");
+		fprintf(fp, "ingress_qdisc_data %lx\n", ingress_qdisc_data);
+		ulong tcf_proto = read_pointer1(qdisc_sleep + STRUCT_SIZE("Qdisc"));
+		fprintf(fp, "tcf_proto %lx\n", tcf_proto);
+		ulong cls_fl_head = read_pointer2(tcf_proto, "tcf_proto", "root");
+		fprintf(fp, "cls_fl_head %lx\n", cls_fl_head);
+
+		ulong cls_fl_filter = cls_fl_head + MEMBER_OFFSET("cls_fl_head", "filters");
+		fprintf(fp, "list -H %lx\n", cls_fl_filter);
+		fprintf(fp, "list -H %lx | wc -l\n", cls_fl_filter);
+		fprintf(fp, "list -H %lx -l cls_fl_filter.list -s cls_fl_filter\n", cls_fl_filter);
+		return;
+	}
+
+	// for upstream
+	if (!ingress_queue)
+		return;
+
+	// qdisc_priv()
+	qdisc = read_pointer2(ingress_queue, "netdev_queue", "qdisc");
+	ulong ingress_sched_data = qdisc + STRUCT_SIZE("Qdisc");
+	fprintf(fp, "ingress_sched_data  %lx\n", ingress_sched_data);
+	ulong tcf_block = read_pointer2(ingress_sched_data, "ingress_sched_data", "block");
+	if (!tcf_block)
+		return;
+	fprintf(fp, "tcf_block  %lx\n", tcf_block);
+
+	// net_device		->	ingress_queue
+	// netdev_queue		->	qdisc
+	// Qdisc			ingress_sched_data
+	// ingress_sched_data	->	block
+	// tcf_block		->	chain_list
+	// tcf_chain		->	tcf_proto
+	// tcf_proto		->	root
+	// cls_fl_head		->	handle_idr
+
+	ulong chain_list = tcf_block + MEMBER_OFFSET("tcf_block", "chain_list");
+	fprintf(fp, "list -H %lx -o tcf_chain.list -s tcf_chain\n", chain_list);
+	fprintf(fp, "list tcf_proto.next filter_chain_addr -s tcf_proto\n\n");
+
+	ulong miniq = read_pointer2(net_addr, "net_device", "miniq_ingress");
+	if (!miniq)
+		return;
+	fprintf(fp, "mini_Qdisc  %lx\n", miniq);
+
+	tcf_block = read_pointer2(miniq, "mini_Qdisc", "filter_list");
+
+	fprintf(fp, "list tcf_proto.next %lx -s tcf_proto\n", tcf_block);
+
+	ulong cls_fl_head = read_pointer2(tcf_block, "tcf_proto", "root");
+	fprintf(fp, "cls_fl_head  %lx\n", cls_fl_head);
+
+	ulong idr = cls_fl_head + MEMBER_OFFSET("cls_fl_head", "handle_idr");
+	fprintf(fp, "idr  %lx\n", idr);
+	fprintf(fp, "tree -t ra %lx -s cls_fl_filter\n", idr);
+	ulong radix = read_pointer2(idr, "radix_tree_root", "rnode");
+	fprintf(fp, "radix_tree_node  %lx\n", radix & ~1UL);
+}
+
+void
+cmd_mlx(void)
+{
+	char *ptr;
+	char *addr = NULL;
+	ulong net_addr = 0;
+
+	addr = args[1];
+	if (addr == NULL) {
+		fprintf(fp, "addr is null\n");
+		return;
+	}
+
+	net_addr = strtoul(addr, &ptr, 16);
+	show_mlx(net_addr);
 }
