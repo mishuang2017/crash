@@ -23,6 +23,7 @@
 
 extern void print_struct(char *, ulong);
 void show_mlx(ulong net_addr);
+void show_ingress(ulong net_addr);
 
 /*
  *  Cache values we need that can change based on OS version, or any other
@@ -1942,9 +1943,79 @@ cmd_hash(void)
         }
 }
 
+int ofed = 0;
+void show_ingress(ulong net_addr)
+{
+	ulong ingress_queue = read_pointer2(net_addr, "net_device", "ingress_queue");
+	fprintf(fp, "net_device.ingress_queue\n");
+	fprintf(fp, "netdev_queue  %lx\n", ingress_queue);
+
+	// for centos 7.2
+	if (ofed == 1 && ingress_queue) {
+		fprintf(fp, "for centos 7.2\n");
+		ulong qdisc_sleep = read_pointer2(ingress_queue, "netdev_queue", "qdisc_sleeping");
+		fprintf(fp, "Qdisc %lx\n", qdisc_sleep);
+		ulong ingress_qdisc_data = qdisc_sleep + STRUCT_SIZE("Qdisc");
+		fprintf(fp, "ingress_qdisc_data %lx\n", ingress_qdisc_data);
+		ulong tcf_proto = read_pointer1(qdisc_sleep + STRUCT_SIZE("Qdisc"));
+		fprintf(fp, "tcf_proto %lx\n", tcf_proto);
+		ulong cls_fl_head = read_pointer2(tcf_proto, "tcf_proto", "root");
+		fprintf(fp, "cls_fl_head %lx\n", cls_fl_head);
+
+		ulong cls_fl_filter = cls_fl_head + MEMBER_OFFSET("cls_fl_head", "filters");
+		fprintf(fp, "list -H %lx\n", cls_fl_filter);
+		fprintf(fp, "list -H %lx | wc -l\n", cls_fl_filter);
+		fprintf(fp, "list -H %lx -l cls_fl_filter.list -s cls_fl_filter\n", cls_fl_filter);
+		return;
+	}
+
+	// for upstream
+	if (!ingress_queue)
+		return;
+
+	// qdisc_priv()
+	ulong qdisc = read_pointer2(ingress_queue, "netdev_queue", "qdisc");
+	ulong ingress_sched_data = qdisc + STRUCT_SIZE("Qdisc");
+	fprintf(fp, "ingress_sched_data  %lx\n", ingress_sched_data);
+	ulong tcf_block = read_pointer2(ingress_sched_data, "ingress_sched_data", "block");
+	if (!tcf_block)
+		return;
+	fprintf(fp, "tcf_block  %lx\n", tcf_block);
+
+	// net_device		->	ingress_queue
+	// netdev_queue		->	qdisc
+	// Qdisc			ingress_sched_data
+	// ingress_sched_data	->	block
+	// tcf_block		->	chain_list
+	// tcf_chain		->	tcf_proto
+	// tcf_proto		->	root
+	// cls_fl_head		->	handle_idr
+
+	ulong chain_list = tcf_block + MEMBER_OFFSET("tcf_block", "chain_list");
+	fprintf(fp, "list -H %lx -o tcf_chain.list -s tcf_chain\n", chain_list);
+	fprintf(fp, "list tcf_proto.next filter_chain_addr -s tcf_proto\n\n");
+
+	ulong miniq = read_pointer2(net_addr, "net_device", "miniq_ingress");
+	if (!miniq)
+		return;
+	fprintf(fp, "mini_Qdisc  %lx\n", miniq);
+
+	tcf_block = read_pointer2(miniq, "mini_Qdisc", "filter_list");
+
+	fprintf(fp, "list tcf_proto.next %lx -s tcf_proto\n", tcf_block);
+
+	ulong cls_fl_head = read_pointer2(tcf_block, "tcf_proto", "root");
+	fprintf(fp, "cls_fl_head  %lx\n", cls_fl_head);
+
+	ulong idr = cls_fl_head + MEMBER_OFFSET("cls_fl_head", "handle_idr");
+	fprintf(fp, "idr  %lx\n", idr);
+	fprintf(fp, "tree -t ra %lx -s cls_fl_filter\n", idr);
+	ulong radix = read_pointer2(idr, "radix_tree_root", "rnode");
+	fprintf(fp, "radix_tree_node  %lx\n", radix & ~1UL);
+}
+
 void show_mlx(ulong net_addr)
 {
-        int ofed = 0;
 	ulong mlx5e_priv = net_addr + SIZE(net_device);
 
 	struct new_utsname *uts;
@@ -2082,72 +2153,7 @@ void show_mlx(ulong net_addr)
 	ulong rq = channel1 + MEMBER_OFFSET("mlx5e_channel", "rq");
 	fprintf(fp, "mlx5e_rq  %lx\n", rq);
 
-	ulong  ingress_queue = read_pointer2(net_addr, "net_device", "ingress_queue");
-	fprintf(fp, "net_device.ingress_queue\n");
-	fprintf(fp, "netdev_queue  %lx\n", ingress_queue);
-
-	// for centos 7.2
-	if (ofed == 1 && ingress_queue) {
-		fprintf(fp, "for centos 7.2\n");
-		ulong qdisc_sleep = read_pointer2(ingress_queue, "netdev_queue", "qdisc_sleeping");
-		fprintf(fp, "Qdisc %lx\n", qdisc_sleep);
-		ulong ingress_qdisc_data = qdisc_sleep + STRUCT_SIZE("Qdisc");
-		fprintf(fp, "ingress_qdisc_data %lx\n", ingress_qdisc_data);
-		ulong tcf_proto = read_pointer1(qdisc_sleep + STRUCT_SIZE("Qdisc"));
-		fprintf(fp, "tcf_proto %lx\n", tcf_proto);
-		ulong cls_fl_head = read_pointer2(tcf_proto, "tcf_proto", "root");
-		fprintf(fp, "cls_fl_head %lx\n", cls_fl_head);
-
-		ulong cls_fl_filter = cls_fl_head + MEMBER_OFFSET("cls_fl_head", "filters");
-		fprintf(fp, "list -H %lx\n", cls_fl_filter);
-		fprintf(fp, "list -H %lx | wc -l\n", cls_fl_filter);
-		fprintf(fp, "list -H %lx -l cls_fl_filter.list -s cls_fl_filter\n", cls_fl_filter);
-		return;
-	}
-
-	// for upstream
-	if (!ingress_queue)
-		return;
-
-	// qdisc_priv()
-	qdisc = read_pointer2(ingress_queue, "netdev_queue", "qdisc");
-	ulong ingress_sched_data = qdisc + STRUCT_SIZE("Qdisc");
-	fprintf(fp, "ingress_sched_data  %lx\n", ingress_sched_data);
-	ulong tcf_block = read_pointer2(ingress_sched_data, "ingress_sched_data", "block");
-	if (!tcf_block)
-		return;
-	fprintf(fp, "tcf_block  %lx\n", tcf_block);
-
-	// net_device		->	ingress_queue
-	// netdev_queue		->	qdisc
-	// Qdisc			ingress_sched_data
-	// ingress_sched_data	->	block
-	// tcf_block		->	chain_list
-	// tcf_chain		->	tcf_proto
-	// tcf_proto		->	root
-	// cls_fl_head		->	handle_idr
-
-	ulong chain_list = tcf_block + MEMBER_OFFSET("tcf_block", "chain_list");
-	fprintf(fp, "list -H %lx -o tcf_chain.list -s tcf_chain\n", chain_list);
-	fprintf(fp, "list tcf_proto.next filter_chain_addr -s tcf_proto\n\n");
-
-	ulong miniq = read_pointer2(net_addr, "net_device", "miniq_ingress");
-	if (!miniq)
-		return;
-	fprintf(fp, "mini_Qdisc  %lx\n", miniq);
-
-	tcf_block = read_pointer2(miniq, "mini_Qdisc", "filter_list");
-
-	fprintf(fp, "list tcf_proto.next %lx -s tcf_proto\n", tcf_block);
-
-	ulong cls_fl_head = read_pointer2(tcf_block, "tcf_proto", "root");
-	fprintf(fp, "cls_fl_head  %lx\n", cls_fl_head);
-
-	ulong idr = cls_fl_head + MEMBER_OFFSET("cls_fl_head", "handle_idr");
-	fprintf(fp, "idr  %lx\n", idr);
-	fprintf(fp, "tree -t ra %lx -s cls_fl_filter\n", idr);
-	ulong radix = read_pointer2(idr, "radix_tree_root", "rnode");
-	fprintf(fp, "radix_tree_node  %lx\n", radix & ~1UL);
+	show_ingress(net_addr);
 }
 
 void
@@ -2165,4 +2171,21 @@ cmd_mlx(void)
 
 	net_addr = strtoul(addr, &ptr, 16);
 	show_mlx(net_addr);
+}
+
+void
+cmd_ingress(void)
+{
+	char *ptr;
+	char *addr = NULL;
+	ulong net_addr = 0;
+
+	addr = args[1];
+	if (addr == NULL) {
+		fprintf(fp, "addr is null\n");
+		return;
+	}
+
+	net_addr = strtoul(addr, &ptr, 16);
+	show_ingress(net_addr);
 }

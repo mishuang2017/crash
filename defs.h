@@ -4808,6 +4808,7 @@ void cmd_gdb(void);          /* gdb_interface.c */
 void cmd_net(void);          /* net.c */
 void cmd_flow(void);         /* net.c */
 void cmd_mlx(void);          /* net.c */
+void cmd_ingress(void);      /* net.c */
 void cmd_hash(void);         /* net.c */
 void cmd_extend(void);       /* extensions.c */
 #if defined(S390) || defined(S390X)
