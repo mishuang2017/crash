@@ -24,6 +24,7 @@
 extern void print_struct(char *, ulong);
 void show_mlx(ulong net_addr);
 void show_ingress(ulong net_addr);
+void show_hash(ulong a, char *opt_s, char *opt_m, int print);
 
 /*
  *  Cache values we need that can change based on OS version, or any other
@@ -1875,72 +1876,78 @@ cmd_flow(void)
 void
 cmd_hash(void)
 {
-        int c;
-        char *addr = NULL;
-        char *ptr;
-        ulong a;
-        int show = 0;
-        int i = 0;
-        ulong rhash_head;
-        int offset = 0;
-        char *opt_s = NULL;     /* struct */
-        char *opt_m = NULL;     /* member */
-        int print = 0;
+	int c;
+	char *addr = NULL;
+	char *ptr;
+	ulong a;
+	int show = 0;
+	char *opt_s = NULL;     /* struct */
+	char *opt_m = NULL;     /* member */
+	int print = 0;
 
-        while ((c = getopt(argcnt, args, "a:s:m:tp")) != EOF) {
-                switch (c) {
-                case 't':       /* for testing */
-                        show = 1;
-                        a = 0xffff8809b254c0c0;
-                        break;
-                case 's':
-                        opt_s = optarg;
-                        break;
-                case 'm':
-                        opt_m = optarg;
-                        break;
-                case 'p':
-                        print = 1;
-                        break;
-                default:
-                        return;
-                }
-        }
+	while ((c = getopt(argcnt, args, "a:s:m:tp")) != EOF) {
+		switch (c) {
+		case 't':       /* for testing */
+			show = 1;
+			a = 0xffff8809b254c0c0;
+			break;
+		case 's':
+			opt_s = optarg;
+			break;
+		case 'm':
+			opt_m = optarg;
+			break;
+		case 'p':
+			print = 1;
+			break;
+		default:
+			return;
+		}
+	}
 
-        addr = args[optind];
-        if (addr == NULL) {
-                fprintf(fp, "addr is null\n");
-                return;
-        }
+	addr = args[optind];
+	if (addr == NULL) {
+		fprintf(fp, "addr is null\n");
+		return;
+	}
 
-        if (!addr || !opt_s || !opt_m) {
-                fprintf(fp, "hash <address of tbl> -s struct -m member\n");
-                return;
-        }
+	if (!addr || !opt_s || !opt_m) {
+		fprintf(fp, "hash <address of tbl> -s struct -m member\n");
+		return;
+	}
 
-        if (show != 1)
-                a = strtoul(addr, &ptr, 16);
+	if (show != 1)
+		a = strtoul(addr, &ptr, 16);
 
-        a = read_pointer1(a);
-        fprintf(fp, "bucket_table %lx -x\n", a);
+	show_hash(a, opt_s, opt_m, print);
+}
 
-        unsigned int size = read_pointer2(a, "bucket_table", "size");
-        ulong buckets = a + MEMBER_OFFSET("bucket_table", "buckets");
+void show_hash(ulong a, char *opt_s, char *opt_m, int print)
+{
+	int i = 0;
+	ulong rhash_head;
+	int offset = 0;
 
-        offset = MEMBER_OFFSET(opt_s, opt_m);
+	a = read_pointer1(a);
+	fprintf(fp, "bucket_table %lx -x\n", a);
 
-        fprintf(fp, "size %x, offset %x\n", size, offset);
-        fprintf(fp, "buckets %lx\n", buckets);
+	unsigned int size = read_pointer2(a, "bucket_table", "size");
+	ulong buckets = a + MEMBER_OFFSET("bucket_table", "buckets");
 
-        for (i = 0; i < size; i++) {
-                rhash_head = read_pointer1(buckets + i * 8);
-                if (rhash_head == i * 2 + 1 || rhash_head == 1)
-                        continue;
-                if (print)
-                        print_struct(opt_s, rhash_head - offset);
-                else
-                        fprintf(fp, "%s %lx\n", opt_s, rhash_head - offset);
-        }
+	offset = MEMBER_OFFSET(opt_s, opt_m);
+
+	fprintf(fp, "size %x, offset %x\n", size, offset);
+	fprintf(fp, "buckets %lx\n", buckets);
+
+	for (i = 0; i < size; i++) {
+		rhash_head = read_pointer1(buckets + i * 8);
+		if (rhash_head == i * 2 + 1 || rhash_head == 1)
+			continue;
+		if (print)
+			print_struct(opt_s, rhash_head - offset);
+		else
+			fprintf(fp, "%s %lx\n", opt_s, rhash_head - offset);
+	}
 }
 
 int ofed = 0;
@@ -2188,4 +2195,72 @@ cmd_ingress(void)
 
 	net_addr = strtoul(addr, &ptr, 16);
 	show_ingress(net_addr);
+}
+
+void
+cmd_tc(void)
+{
+	int c;
+	char *index = NULL;
+	int i;
+	int eg = 0;
+	int help = 0;
+	ulong net_ns_p = symbol_value("init_net");
+
+	while ((c = getopt(argcnt, args, "i:eh")) != EOF) {
+		switch (c) {
+		case 'i':
+			index = optarg;
+			break;
+		case 'e':
+			eg = 1;
+			break;
+		case 'h':
+			help = 1;
+		break;
+			default:
+			return;
+		}
+	}
+
+	if (help || !index) {
+		fprintf(fp, "mirred_net_id\n");
+		fprintf(fp, "vxlan_net_id\n");
+		fprintf(fp, "vlan_net_id\n");
+		fprintf(fp, "tunnel_key_net_id\n");
+		fprintf(fp, "tcf_action_net_id\n");
+
+		fprintf(fp, "-l tc_action.tcfa_head -s tc_action\n");
+		fprintf(fp, "-l tc_action.tcfa_head -s tcf_mirred\n");
+		fprintf(fp, "-l tc_action.tcfa_head -s tcf_vlan\n");
+		fprintf(fp, "-l tc_action.tcfa_head -s tcf_tunnel_key\n");
+		return;
+	}
+
+	i = atoi(index);
+
+	ulong gen = read_pointer2(net_ns_p, "net", "gen");
+	fprintf(fp, "net_generic %lx\n", gen);
+	ulong tc_action_net = read_pointer1(gen + i * 8);
+
+	if (eg) {
+		fprintf(fp, "tcf_action_net %lx\n", tc_action_net);
+		fprintf(fp, "================================\n");
+		show_hash(tc_action_net, "tcf_action_egdev", "ht_node", 0);
+		fprintf(fp, "================================\n");
+		show_hash(tc_action_net, "tcf_action_egdev", "ht_node", 1);
+	} else {
+		fprintf(fp, "tc_action_net %lx\n", tc_action_net);
+
+		ulong tcf_idrinfo = read_pointer1(tc_action_net);
+		fprintf(fp, "tcf_idrinfo %lx\n", tcf_idrinfo);
+		ulong idr = tcf_idrinfo + MEMBER_OFFSET("tcf_idrinfo", "action_idr");
+
+		fprintf(fp, "idr  %lx\n", idr);
+		ulong radix = read_pointer2(idr, "radix_tree_root", "rnode");
+		fprintf(fp, "radix_tree_node  %lx\n", radix & ~1UL);
+		fprintf(fp, "\ntree -t ra %lx -s tc_action\n", idr);
+		fprintf(fp, "tree -t ra %lx -s tc_action.tcfa_refcnt\n", idr);
+		fprintf(fp, "repeat tree -t ra %lx -s tc_action.tcfa_refcnt\n", idr);
+	}
 }
