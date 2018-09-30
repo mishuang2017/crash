@@ -98,6 +98,7 @@ struct command_table_entry linux_command_table[] = {
 	{"flow",    cmd_flow,    help_net,      REFRESH_TASK_TABLE},
 	{"mlx",     cmd_mlx,     help_net,      REFRESH_TASK_TABLE},
 	{"in",      cmd_ingress, help_net,      REFRESH_TASK_TABLE},
+	{"tc",      cmd_tc,      help_net,      REFRESH_TASK_TABLE},
 	{"hash",    cmd_hash,    help_net,      REFRESH_TASK_TABLE},
 	{"p",       cmd_p,       help_p,       0},
 	{"ps",      cmd_ps,      help_ps,      REFRESH_TASK_TABLE},
