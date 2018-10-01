@@ -2204,18 +2204,23 @@ cmd_tc(void)
 {
 	int c;
 	char *index = NULL;
-	int i;
+	int i = 0;
 	int eg = 0;
-	int help = 0;
+	int help = 0, print = 0;
 	ulong net_ns_p = symbol_value("init_net");
 
-	while ((c = getopt(argcnt, args, "i:eh")) != EOF) {
+	while ((c = getopt(argcnt, args, "i:eph")) != EOF) {
 		switch (c) {
 		case 'i':
 			index = optarg;
+			i = atoi(index);
 			break;
 		case 'e':
 			eg = 1;
+			i = read_pointer1(symbol_value("tcf_action_net_id"));
+			break;
+		case 'p':
+			print = 1;
 			break;
 		case 'h':
 			help = 1;
@@ -2225,7 +2230,7 @@ cmd_tc(void)
 		}
 	}
 
-	if (help || !index) {
+	if (help || !i) {
 		fprintf(fp, "mirred_net_id: %ld\n",
 			read_pointer1(symbol_value("mirred_net_id")));
 		fprintf(fp, "vxlan_net_id\n");
@@ -2243,8 +2248,6 @@ cmd_tc(void)
 		return;
 	}
 
-	i = atoi(index);
-
 	ulong gen = read_pointer2(net_ns_p, "net", "gen");
 	fprintf(fp, "net_generic %lx\n", gen);
 	ulong tc_action_net = read_pointer1(gen + i * 8);
@@ -2254,8 +2257,10 @@ cmd_tc(void)
 		fprintf(fp, "list -H cb_list -s tcf_action_egdev_cb\n");
 		fprintf(fp, "================================\n");
 		show_hash(tc_action_net, "tcf_action_egdev", "ht_node", 0);
-		fprintf(fp, "================================\n");
-		show_hash(tc_action_net, "tcf_action_egdev", "ht_node", 1);
+		if (print) {
+			fprintf(fp, "================================\n");
+			show_hash(tc_action_net, "tcf_action_egdev", "ht_node", 1);
+		}
 	} else {
 		fprintf(fp, "tc_action_net %lx\n", tc_action_net);
 
