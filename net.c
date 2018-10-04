@@ -1988,6 +1988,8 @@ void show_ingress(ulong net_addr)
 	if (!tcf_block)
 		return;
 	fprintf(fp, "tcf_block  %lx\n", tcf_block);
+	ulong cb_list = tcf_block + MEMBER_OFFSET("tcf_block", "cb_list");
+	fprintf(fp, "list -H %lx -s tcf_block_cb\n", cb_list);
 
 	// net_device		->	ingress_queue
 	// netdev_queue		->	qdisc
@@ -2202,18 +2204,23 @@ cmd_tc(void)
 {
 	int c;
 	char *index = NULL;
-	int i;
+	int i = 0;
 	int eg = 0;
-	int help = 0;
+	int help = 0, print = 0;
 	ulong net_ns_p = symbol_value("init_net");
 
-	while ((c = getopt(argcnt, args, "i:eh")) != EOF) {
+	while ((c = getopt(argcnt, args, "i:eph")) != EOF) {
 		switch (c) {
 		case 'i':
 			index = optarg;
+			i = atoi(index);
 			break;
 		case 'e':
 			eg = 1;
+			i = read_pointer1(symbol_value("tcf_action_net_id"));
+			break;
+		case 'p':
+			print = 1;
 			break;
 		case 'h':
 			help = 1;
@@ -2223,12 +2230,16 @@ cmd_tc(void)
 		}
 	}
 
-	if (help || !index) {
-		fprintf(fp, "mirred_net_id\n");
+	if (help || !i) {
+		fprintf(fp, "mirred_net_id: %ld\n",
+			read_pointer1(symbol_value("mirred_net_id")));
 		fprintf(fp, "vxlan_net_id\n");
 		fprintf(fp, "vlan_net_id\n");
-		fprintf(fp, "tunnel_key_net_id\n");
-		fprintf(fp, "tcf_action_net_id\n");
+		fprintf(fp, "tunnel_key_net_id: %ld\n",
+			read_pointer1(symbol_value("tunnel_key_net_id")));
+		fprintf(fp, "vxlan_net_id\n");
+		fprintf(fp, "tcf_action_net_id: %ld\n",
+			read_pointer1(symbol_value("tcf_action_net_id")));
 
 		fprintf(fp, "-l tc_action.tcfa_head -s tc_action\n");
 		fprintf(fp, "-l tc_action.tcfa_head -s tcf_mirred\n");
@@ -2237,18 +2248,19 @@ cmd_tc(void)
 		return;
 	}
 
-	i = atoi(index);
-
 	ulong gen = read_pointer2(net_ns_p, "net", "gen");
 	fprintf(fp, "net_generic %lx\n", gen);
 	ulong tc_action_net = read_pointer1(gen + i * 8);
 
 	if (eg) {
 		fprintf(fp, "tcf_action_net %lx\n", tc_action_net);
+		fprintf(fp, "list -H cb_list -s tcf_action_egdev_cb\n");
 		fprintf(fp, "================================\n");
 		show_hash(tc_action_net, "tcf_action_egdev", "ht_node", 0);
-		fprintf(fp, "================================\n");
-		show_hash(tc_action_net, "tcf_action_egdev", "ht_node", 1);
+		if (print) {
+			fprintf(fp, "================================\n");
+			show_hash(tc_action_net, "tcf_action_egdev", "ht_node", 1);
+		}
 	} else {
 		fprintf(fp, "tc_action_net %lx\n", tc_action_net);
 
@@ -2262,5 +2274,60 @@ cmd_tc(void)
 		fprintf(fp, "\ntree -t ra %lx -s tc_action\n", idr);
 		fprintf(fp, "tree -t ra %lx -s tc_action.tcfa_refcnt\n", idr);
 		fprintf(fp, "repeat tree -t ra %lx -s tc_action.tcfa_refcnt\n", idr);
+	}
+}
+
+void
+cmd_array(void)
+{
+	char *addr = NULL, *s = NULL, *number = NULL, *member = NULL;
+	int print = 0, help = 0;
+	int c, n, i;
+	ulong a;
+
+	while ((c = getopt(argcnt, args, "s:n:m:ph")) != EOF) {
+		switch (c) {
+		case 'n':
+			number = optarg;
+			break;
+		case 's':
+			s = optarg;
+			break;
+		case 'm':
+			member = optarg;
+			break;
+		case 'p':
+			print = 1;
+			break;
+		case 'h':
+			help = 1;
+			break;
+		default:
+			return;
+		}
+	}
+
+	addr = args[optind];
+	if (help || !addr | !number || !s) {
+		fprintf(fp, "net\n");
+		fprintf(fp, "net_device._tx ffff881025280000\n");
+		fprintf(fp, "array ffff881025280000 -s netdev_queue -n 16 -p\n");
+		fprintf(fp, "array ffff881025280000 -s netdev_queue -n 16 -m kobj\n");
+		return;
+	}
+
+	a = strtoul(addr, NULL, 16);
+	n = atoi(number);
+
+	for (i = 0; i < n; i ++) {
+		ulong new = a + i * STRUCT_SIZE(s);
+		if (member)
+			fprintf(fp, "%s.%s %lx\n", s, member, new);
+		else {
+			if (print)
+				print_struct(s, new);
+			else
+				fprintf(fp, "%s %lx\n", s, new);
+		}
 	}
 }
