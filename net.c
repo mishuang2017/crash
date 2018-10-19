@@ -1957,6 +1957,7 @@ void show_ingress(ulong net_addr)
 	fprintf(fp, "net_device.ingress_queue\n");
 	fprintf(fp, "netdev_queue  %lx\n", ingress_queue);
 
+#if 0
 	// for centos 7.2
 	if (ofed == 1 && ingress_queue) {
 		fprintf(fp, "for centos 7.2\n");
@@ -1975,6 +1976,7 @@ void show_ingress(ulong net_addr)
 		fprintf(fp, "list -H %lx -l cls_fl_filter.list -s cls_fl_filter\n", cls_fl_filter);
 		return;
 	}
+#endif
 
 	// for upstream
 	if (!ingress_queue)
@@ -2252,6 +2254,7 @@ cmd_tc(void)
 	fprintf(fp, "net_generic %lx\n", gen);
 	ulong tc_action_net = read_pointer1(gen + i * 8);
 
+/* 	fprintf(fp, "eg %d, i: %d\n", eg, i); */
 	if (eg) {
 		fprintf(fp, "tcf_action_net %lx\n", tc_action_net);
 		fprintf(fp, "list -H cb_list -s tcf_action_egdev_cb\n");
