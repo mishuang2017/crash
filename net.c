@@ -604,6 +604,72 @@ show_net_devices_v3(ulong task)
 	FREEBUF(buf);
 }
 
+static ulong
+get_netdev_addr(char *name)
+{
+	ulong task = CURRENT_TASK();
+	ulong nsproxy_p, net_ns_p;
+	struct list_data list_data, *ld;
+	char *net_device_buf;
+	char *buf;
+	long buflen = BUFSIZE;
+	int ndevcnt, i;
+	long flen;
+	ulong netdev_addr = 0;
+
+	if (!net->netdevice) /* initialized in net_init() */
+		return 0;
+
+	buf = GETBUF(buflen);
+	flen = MAX(VADDR_PRLEN, strlen(net->netdevice));
+
+	net_device_buf = GETBUF(SIZE(net_device));
+
+	ld =  &list_data;
+	BZERO(ld, sizeof(struct list_data));
+	ld->flags |= LIST_ALLOCATE;
+	if (VALID_MEMBER(nsproxy_net_ns)) {
+		readmem(task + OFFSET(task_struct_nsproxy), KVADDR, &nsproxy_p,
+			sizeof(ulong), "task_struct.nsproxy", FAULT_ON_ERROR);
+		if (!readmem(nsproxy_p + OFFSET(nsproxy_net_ns), KVADDR, &net_ns_p,
+			sizeof(ulong), "nsproxy.net_ns", RETURN_ON_ERROR|QUIET))
+			error(FATAL, "cannot determine net_namespace location!\n");
+	} else
+		net_ns_p = symbol_value("init_net");
+	ld->start = ld->end = net_ns_p + OFFSET(net_dev_base_head);
+	ld->list_head_offset = OFFSET(net_device_dev_list);
+
+	ndevcnt = do_list(ld);
+
+	/*
+	 *  Skip the first entry (init_net).
+	 */
+	for (i = 1; i < ndevcnt; ++i) {
+		char *netdev_addr_str;
+		char *ptr;
+
+		get_device_name(ld->list_ptr[i], buf);
+		if (!strncmp(buf, name, buflen)) {
+			readmem(ld->list_ptr[i], KVADDR, net_device_buf,
+				SIZE(net_device), "net_device buffer",
+				FAULT_ON_ERROR);
+
+			netdev_addr_str = mkstring(buf, flen, CENTER|RJUST|LONG_HEX,
+				MKSTR(ld->list_ptr[i]));
+
+			netdev_addr = strtoul(netdev_addr_str, &ptr, 16);
+			goto found;
+		}
+	}
+
+found:
+	FREEBUF(ld->list_ptr);
+	FREEBUF(net_device_buf);
+	FREEBUF(buf);
+
+	return netdev_addr;
+}
+
 /*
  * Perform the actual work of dumping the ARP table...
  */
@@ -2170,35 +2236,36 @@ void show_mlx(ulong net_addr)
 void
 cmd_mlx(void)
 {
-	char *ptr;
-	char *addr = NULL;
-	ulong net_addr = 0;
+	char *name = NULL;
+	ulong addr;
 
-	addr = args[1];
-	if (addr == NULL) {
-		fprintf(fp, "addr is null\n");
+	name = args[1];
+	if (name == NULL) {
+		fprintf(fp, "name is NULL\n");
 		return;
 	}
 
-	net_addr = strtoul(addr, &ptr, 16);
-	show_mlx(net_addr);
+	addr = get_netdev_addr(name);
+	if (addr)
+		show_mlx(addr);
 }
 
 void
 cmd_ingress(void)
 {
-	char *ptr;
-	char *addr = NULL;
-	ulong net_addr = 0;
+	char *name = NULL;
+	ulong addr;
 
-	addr = args[1];
-	if (addr == NULL) {
-		fprintf(fp, "addr is null\n");
+	name = args[1];
+	if (name == NULL) {
+		fprintf(fp, "name is NULL\n");
 		return;
 	}
 
-	net_addr = strtoul(addr, &ptr, 16);
-	show_ingress(net_addr);
+	addr = get_netdev_addr(name);
+	if (addr)
+		show_ingress(addr);
+
 }
 
 void
