@@ -2236,6 +2236,7 @@ void show_mlx(ulong net_addr)
 void
 cmd_mlx(void)
 {
+	char *ptr;
 	char *name = NULL;
 	ulong addr;
 
@@ -2245,7 +2246,10 @@ cmd_mlx(void)
 		return;
 	}
 
-	addr = get_netdev_addr(name);
+	if (strstr(name, "ffff88"))
+		addr = strtoul(name, &ptr, 16);
+	else
+		addr = get_netdev_addr(name);
 	if (addr)
 		show_mlx(addr);
 }
