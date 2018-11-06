@@ -2187,6 +2187,15 @@ void show_mlx(ulong net_addr)
 
 		ulong offloads = esw + MEMBER_OFFSET("mlx5_eswitch", "offloads");
 		fprintf(fp, "mlx5_esw_offload  %lx\n", offloads);
+
+		ulong vport_reps = read_pointer2(offloads, "mlx5_esw_offload", "vport_reps");
+		fprintf(fp, "mlx5_eswitch_rep %lx\n", vport_reps);
+		ulong rep_if = vport_reps + MEMBER_OFFSET("mlx5_eswitch_rep", "rep_if");
+		fprintf(fp, "mlx5_eswitch_rep_if %lx\n", rep_if);
+		ulong mlx5e_rep_priv = read_pointer2(rep_if, "mlx5_eswitch_rep_if", "priv");
+		fprintf(fp, "mlx5e_rep_priv %lx\n", mlx5e_rep_priv);
+		fprintf(fp, "mlx5e_rep_priv.tc_ht %lx -o\n", mlx5e_rep_priv);
+
 		fprintf(fp, "mlx5_esw_offload.num_flows,encap  %lx\n", offloads);
 		fprintf(fp, "repeat -1 mlx5_esw_offload.num_flows -d %lx\n", offloads);
 
