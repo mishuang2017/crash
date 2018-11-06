@@ -1972,11 +1972,6 @@ cmd_hash(void)
 	}
 
 	addr = args[optind];
-	if (addr == NULL) {
-		fprintf(fp, "addr is null\n");
-		return;
-	}
-
 	if (!addr || !opt_s || !opt_m) {
 		fprintf(fp, "hash <address of tbl> -s struct -m member\n");
 		return;
@@ -2195,6 +2190,8 @@ void show_mlx(ulong net_addr)
 		ulong mlx5e_rep_priv = read_pointer2(rep_if, "mlx5_eswitch_rep_if", "priv");
 		fprintf(fp, "mlx5e_rep_priv %lx\n", mlx5e_rep_priv);
 		fprintf(fp, "mlx5e_rep_priv.tc_ht %lx -o\n", mlx5e_rep_priv);
+		ulong tc_ht = mlx5e_rep_priv + MEMBER_OFFSET("mlx5e_rep_priv", "tc_ht");
+		fprintf(fp, "hash %lx -s mlx5e_tc_flow -m node\n", tc_ht);
 
 		fprintf(fp, "mlx5_esw_offload.num_flows,encap  %lx\n", offloads);
 		fprintf(fp, "repeat -1 mlx5_esw_offload.num_flows -d %lx\n", offloads);
