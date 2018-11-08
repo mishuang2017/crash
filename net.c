@@ -2054,14 +2054,14 @@ void show_ingress(ulong net_addr)
 	ulong cb_list = tcf_block + MEMBER_OFFSET("tcf_block", "cb_list");
 	fprintf(fp, "list -H %lx -s tcf_block_cb\n", cb_list);
 
-	// net_device		->	ingress_queue
-	// netdev_queue		->	qdisc
-	// Qdisc			ingress_sched_data
-	// ingress_sched_data	->	block
-	// tcf_block		->	chain_list
-	// tcf_chain		->	tcf_proto
-	// tcf_proto		->	root
-	// cls_fl_head		->	handle_idr
+	// struct net_device		->	ingress_queue
+	// struct netdev_queue		->	qdisc
+	// struct Qdisc			->	ingress_sched_data
+	// struct ingress_sched_data	->	block
+	// struct tcf_block		->	chain_list
+	// struct tcf_chain		->	tcf_proto
+	// struct tcf_proto		->	root
+	// struct cls_fl_head		->	handle_idr
 
 	ulong chain_list = tcf_block + MEMBER_OFFSET("tcf_block", "chain_list");
 	fprintf(fp, "list -H %lx -o tcf_chain.list -s tcf_chain\n", chain_list);
@@ -2078,6 +2078,8 @@ void show_ingress(ulong net_addr)
 
 	ulong cls_fl_head = read_pointer2(tcf_block, "tcf_proto", "root");
 	fprintf(fp, "cls_fl_head  %lx\n", cls_fl_head);
+	ulong ht = cls_fl_head + MEMBER_OFFSET("cls_fl_head", "ht");
+	fprintf(fp, "hash %lx -s fl_flow_mask -m ht_node\n", ht);
 
 	ulong idr = cls_fl_head + MEMBER_OFFSET("cls_fl_head", "handle_idr");
 	fprintf(fp, "idr  %lx\n", idr);
