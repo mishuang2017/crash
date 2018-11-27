@@ -1853,7 +1853,7 @@ cmd_flow(void)
 		for (i1 = 1; i1 < n1; ++i1) {
 			ulong t1 = ld_group->list_ptr[i1];
 			if (!dest) {
-				fprintf(fp, "\tmlx5_flow_group %lx -x\n", t1);
+				fprintf(fp, "\tmlx5_flow_group.mask %lx -x\n", t1);
 			}
 
 			ld_fte =  &fte;
@@ -2080,7 +2080,7 @@ void show_ingress(ulong net_addr)
 	fprintf(fp, "cls_fl_head  %lx\n", cls_fl_head);
 	ulong ht = cls_fl_head + MEMBER_OFFSET("cls_fl_head", "ht");
 	fprintf(fp, "hash %lx -s fl_flow_mask -m ht_node\n", ht);
-	fprintf(fp, "list -H filters -s cls_fl_filter -o cls_fl_filter.list\n", ht);
+	fprintf(fp, "list -H filters -s cls_fl_filter -o cls_fl_filter.list\n");
 
 	ulong idr = cls_fl_head + MEMBER_OFFSET("cls_fl_head", "handle_idr");
 	fprintf(fp, "idr  %lx\n", idr);
