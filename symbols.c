@@ -3898,12 +3898,10 @@ is_bfd_format(char *filename)
 #else
         struct bfd *bfd;
 #endif
-        char **matching;
-
         if ((bfd = bfd_openr(filename, NULL)) == NULL) 
                 return FALSE;
         
-        if (!bfd_check_format_matches(bfd, bfd_object, &matching)) {
+        if (!bfd_check_format_matches(bfd, bfd_object, NULL)) {
                 bfd_close(bfd);
                 return FALSE;
         }
@@ -5496,6 +5494,7 @@ datatype_init(void)
  *   #define MEMBER_EXISTS(X,Y)  (datatype_info((X), (Y), NULL) >= 0)
  *   #define MEMBER_SIZE(X,Y)    datatype_info((X), (Y), MEMBER_SIZE_REQUEST)
  *   #define MEMBER_TYPE(X,Y)    datatype_info((X), (Y), MEMBER_TYPE_REQUEST)
+ *   #define MEMBER_TYPE_NAME(X,Y)      datatype_info((X), (Y), MEMBER_TYPE_NAME_REQUEST)
  *   #define ANON_MEMBER_OFFSET(X,Y)    datatype_info((X), (Y), ANON_MEMBER_OFFSET_REQUEST)
  *
  *  to determine structure or union sizes, or member offsets.
@@ -5522,9 +5521,9 @@ datatype_info(char *name, char *member, struct datatype_member *dm)
 	req->fp = pc->nullfp;
 
 	gdb_interface(req);
-        if (req->flags & GNU_COMMAND_FAILED) {
+	if (req->flags & GNU_COMMAND_FAILED) {
 		FREEBUF(req);
-		return -1;
+		return (dm == MEMBER_TYPE_NAME_REQUEST) ? 0 : -1;
 	}
 
 	if (!req->typecode) {
@@ -5640,7 +5639,7 @@ datatype_info(char *name, char *member, struct datatype_member *dm)
 	FREEBUF(req);
 
         if (dm && (dm != MEMBER_SIZE_REQUEST) && (dm != MEMBER_TYPE_REQUEST) &&
-	    (dm != STRUCT_SIZE_REQUEST)) {
+	    (dm != STRUCT_SIZE_REQUEST) && (dm != MEMBER_TYPE_NAME_REQUEST)) {
                 dm->type = type_found;
                 dm->size = size;
 		dm->member_size = member_size;
@@ -5655,14 +5654,25 @@ datatype_info(char *name, char *member, struct datatype_member *dm)
 		}
         }
 
-        if (!type_found) 
-        	return -1;
+	if (!type_found) 
+		return (dm == MEMBER_TYPE_NAME_REQUEST) ? 0 : -1;
 
 	if (dm == MEMBER_SIZE_REQUEST)
 		return member_size;
 	else if (dm == MEMBER_TYPE_REQUEST)
 		return member_typecode;
-	else if (dm == STRUCT_SIZE_REQUEST) {
+	else if (dm == MEMBER_TYPE_NAME_REQUEST) {
+		if (req->member_main_type_name)
+			return (ulong)req->member_main_type_name;
+		else if (req->member_main_type_tag_name)
+			return (ulong)req->member_main_type_tag_name;
+		else if (req->member_target_type_name)
+			return (ulong)req->member_target_type_name;
+		else if (req->member_target_type_tag_name)
+			return (ulong)req->member_target_type_tag_name;
+		else
+			return 0;
+	} else if (dm == STRUCT_SIZE_REQUEST) {
 		if ((req->typecode == TYPE_CODE_STRUCT) || 
 		    (req->typecode == TYPE_CODE_UNION) ||
 		     req->is_typedef)
@@ -9744,6 +9754,28 @@ dump_offset_table(char *spec, ulong makestruct)
         fprintf(fp, "                pci_bus_number: %ld\n",
         	OFFSET(pci_bus_number));
 
+        fprintf(fp, "                   pci_dev_dev: %ld\n",
+        	OFFSET(pci_dev_dev));
+        fprintf(fp, "              pci_dev_hdr_type: %ld\n",
+        	OFFSET(pci_dev_hdr_type));
+        fprintf(fp, "        pci_dev_pcie_flags_reg: %ld\n",
+        	OFFSET(pci_dev_pcie_flags_reg));
+        fprintf(fp, "                  pci_bus_node: %ld\n",
+        	OFFSET(pci_bus_node));
+        fprintf(fp, "               pci_bus_devices: %ld\n",
+        	OFFSET(pci_bus_devices));
+        fprintf(fp, "                   pci_bus_dev: %ld\n",
+        	OFFSET(pci_bus_dev));
+        fprintf(fp, "              pci_bus_children: %ld\n",
+        	OFFSET(pci_bus_children));
+        fprintf(fp, "                pci_bus_parent: %ld\n",
+        	OFFSET(pci_bus_parent));
+        fprintf(fp, "                  pci_bus_self: %ld\n",
+        	OFFSET(pci_bus_self));
+        fprintf(fp, "                   device_kobj: %ld\n",
+        	OFFSET(device_kobj));
+        fprintf(fp, "                  kobject_name: %ld\n",
+        	OFFSET(kobject_name));
 
         fprintf(fp, "         resource_entry_t_from: %ld\n",
         	OFFSET(resource_entry_t_from));
@@ -9938,6 +9970,18 @@ dump_offset_table(char *spec, ulong makestruct)
 		OFFSET(tss_struct_ist));
 	fprintf(fp, "   mem_section_section_mem_map: %ld\n",
 		OFFSET(mem_section_section_mem_map));
+	fprintf(fp, "   mem_section_pageblock_flags: %ld\n",
+		OFFSET(mem_section_pageblock_flags));
+	fprintf(fp, "              memory_block_dev: %ld\n",
+		OFFSET(memory_block_dev));
+	fprintf(fp, "              memory_block_nid: %ld\n",
+		OFFSET(memory_block_nid));
+	fprintf(fp, " memory_block_start_section_nr: %ld\n",
+		OFFSET(memory_block_start_section_nr));
+	fprintf(fp, "   memory_block_end_section_nr: %ld\n",
+		OFFSET(memory_block_end_section_nr));
+	fprintf(fp, "            memory_block_state: %ld\n",
+		OFFSET(memory_block_state));
 
 	fprintf(fp, "  vcpu_guest_context_user_regs: %ld\n",
 		OFFSET(vcpu_guest_context_user_regs));
@@ -10031,6 +10075,8 @@ dump_offset_table(char *spec, ulong makestruct)
 		OFFSET(unwind_idx_addr));
 	fprintf(fp, "               unwind_idx_insn: %ld\n",
 		OFFSET(unwind_idx_insn));
+	fprintf(fp, "                    bus_type_p: %ld\n",
+		OFFSET(bus_type_p));
 	fprintf(fp, "                 class_devices: %ld\n",
 		OFFSET(class_devices));
 	fprintf(fp, "                       class_p: %ld\n",
@@ -10041,6 +10087,10 @@ dump_offset_table(char *spec, ulong makestruct)
 		OFFSET(device_knode_class));
 	fprintf(fp, "                   device_node: %ld\n",
 		OFFSET(device_node));
+	fprintf(fp, "         device_private_device: %ld\n",
+		OFFSET(device_private_device));
+	fprintf(fp, "      device_private_knode_bus: %ld\n",
+		OFFSET(device_private_knode_bus));
 	fprintf(fp, "                   gendisk_dev: %ld\n",
 		OFFSET(gendisk_dev));
 	fprintf(fp, "                  gendisk_kobj: %ld\n",
@@ -10324,6 +10374,13 @@ dump_offset_table(char *spec, ulong makestruct)
 	fprintf(fp, "               user_struct_uid: %ld\n",
 		OFFSET(user_struct_uid));
 
+	fprintf(fp, "                xarray_xa_head: %ld\n",
+		OFFSET(xarray_xa_head));
+	fprintf(fp, "                 xa_node_slots: %ld\n",
+		OFFSET(xa_node_slots));
+	fprintf(fp, "                 xa_node_shift: %ld\n",
+		OFFSET(xa_node_shift));
+
 	fprintf(fp, "\n                    size_table:\n");
 	fprintf(fp, "                          page: %ld\n", SIZE(page));
 	fprintf(fp, "                    page_flags: %ld\n", SIZE(page_flags));
@@ -10577,6 +10634,11 @@ dump_offset_table(char *spec, ulong makestruct)
 		SIZE(bpf_map));
 	fprintf(fp, "                      bpf_insn: %ld\n",
 		SIZE(bpf_insn));
+	fprintf(fp, "                        xarray: %ld\n",
+		SIZE(xarray));
+	fprintf(fp, "                       xa_node: %ld\n",
+		SIZE(xa_node));
+
 
         fprintf(fp, "\n                   array_table:\n");
 	/*

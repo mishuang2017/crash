@@ -108,6 +108,7 @@ kernel_init()
 	char *rq_timestamp_name = NULL;
 	char *irq_desc_type_name;	
 	ulong pv_init_ops;
+	struct gnu_request req;
 
 	if (pc->flags & KERNEL_DEBUG_QUERY)
 		return;
@@ -164,7 +165,8 @@ kernel_init()
                        	error(FATAL, "cannot malloc m2p page.");
 	}
 
-	if (PVOPS() && readmem(symbol_value("pv_init_ops"), KVADDR, &pv_init_ops,
+	if (PVOPS() && symbol_exists("pv_init_ops") &&
+	    readmem(symbol_value("pv_init_ops"), KVADDR, &pv_init_ops,
 	    sizeof(void *), "pv_init_ops", RETURN_ON_ERROR) &&
 	    (p1 = value_symbol(pv_init_ops)) && 
 	    STREQ(p1, "xen_patch")) {
@@ -526,8 +528,12 @@ kernel_init()
 	MEMBER_OFFSET_INIT(irqaction_dev_id, "irqaction", "dev_id");
 	MEMBER_OFFSET_INIT(irqaction_next, "irqaction", "next");
 
-	if (kernel_symbol_exists("irq_desc_tree"))
-		kt->flags |= IRQ_DESC_TREE;
+	if (kernel_symbol_exists("irq_desc_tree")) {
+		get_symbol_type("irq_desc_tree", NULL, &req);
+		kt->flags2 |= STREQ(req.type_tag_name, "xarray") ?
+			IRQ_DESC_TREE_XARRAY : IRQ_DESC_TREE_RADIX;
+
+	}
 	STRUCT_SIZE_INIT(irq_data, "irq_data");
 	if (VALID_STRUCT(irq_data)) {
 		MEMBER_OFFSET_INIT(irq_data_chip, "irq_data", "chip");
@@ -5862,8 +5868,6 @@ dump_kernel_table(int verbose)
 		fprintf(fp, "%sRELOC_FORCE", others++ ? "|" : "");
 	if (kt->flags & PRE_KERNEL_INIT)
 		fprintf(fp, "%sPRE_KERNEL_INIT", others++ ? "|" : "");
-	if (kt->flags & IRQ_DESC_TREE)
-		fprintf(fp, "%sIRQ_DESC_TREE", others++ ? "|" : "");
 	fprintf(fp, ")\n");
 
         others = 0;
@@ -5879,6 +5883,10 @@ dump_kernel_table(int verbose)
 		fprintf(fp, "%sTVEC_BASES_V3", others++ ? "|" : "");
 	if (kt->flags2 & TIMER_BASES)
 		fprintf(fp, "%sTIMER_BASES", others++ ? "|" : "");
+	if (kt->flags2 & IRQ_DESC_TREE_RADIX)
+		fprintf(fp, "%sIRQ_DESC_TREE_RADIX", others++ ? "|" : "");
+	if (kt->flags2 & IRQ_DESC_TREE_XARRAY)
+		fprintf(fp, "%sIRQ_DESC_TREE_XARRAY", others++ ? "|" : "");
 	fprintf(fp, ")\n");
 
         fprintf(fp, "         stext: %lx\n", kt->stext);
@@ -6326,10 +6334,10 @@ get_irq_desc_addr(int irq)
 	int c;
 	ulong cnt, addr, ptr;
 	long len;
-	struct radix_tree_pair *rtp;
+	struct list_pair *lp;
 
 	addr = 0;
-	rtp = NULL;
+	lp = NULL;
 
 	if (!VALID_STRUCT(irq_desc_t))
 		error(FATAL, "cannot determine size of irq_desc_t\n");
@@ -6348,32 +6356,52 @@ get_irq_desc_addr(int irq)
 		readmem(ptr, KVADDR, &addr,
                         sizeof(void *), "irq_desc_ptrs entry",
                         FAULT_ON_ERROR);
-	} else if (kt->flags & IRQ_DESC_TREE) {
+	} else if (kt->flags2 & (IRQ_DESC_TREE_RADIX|IRQ_DESC_TREE_XARRAY)) {
 		if (kt->highest_irq && (irq > kt->highest_irq))
 			return addr;
 
-		cnt = do_radix_tree(symbol_value("irq_desc_tree"),
+		cnt = 0;
+		switch (kt->flags2 & (IRQ_DESC_TREE_RADIX|IRQ_DESC_TREE_XARRAY))
+		{
+		case IRQ_DESC_TREE_RADIX:
+			cnt = do_radix_tree(symbol_value("irq_desc_tree"),
 				RADIX_TREE_COUNT, NULL);
-		len = sizeof(struct radix_tree_pair) * (cnt+1);
-		rtp = (struct radix_tree_pair *)GETBUF(len);
-		rtp[0].index = cnt;
-		cnt = do_radix_tree(symbol_value("irq_desc_tree"),
-				RADIX_TREE_GATHER, rtp);
+			break;
+		case IRQ_DESC_TREE_XARRAY:
+			cnt = do_xarray(symbol_value("irq_desc_tree"),
+				XARRAY_COUNT, NULL);
+			break;
+		}
+		len = sizeof(struct list_pair) * (cnt+1);
+		lp = (struct list_pair *)GETBUF(len);
+		lp[0].index = cnt;
+
+		switch (kt->flags2 & (IRQ_DESC_TREE_RADIX|IRQ_DESC_TREE_XARRAY))
+		{
+		case IRQ_DESC_TREE_RADIX:
+			cnt = do_radix_tree(symbol_value("irq_desc_tree"),
+				RADIX_TREE_GATHER, lp);
+			break;
+		case IRQ_DESC_TREE_XARRAY:
+			cnt = do_xarray(symbol_value("irq_desc_tree"),
+				XARRAY_GATHER, lp);
+			break;
+		}
 
 		if (kt->highest_irq == 0)
-			kt->highest_irq = rtp[cnt-1].index;
+			kt->highest_irq = lp[cnt-1].index;
 
 		for (c = 0; c < cnt; c++) {
-			if (rtp[c].index == irq) {
+			if (lp[c].index == irq) {
 				if (CRASHDEBUG(1))
 					fprintf(fp, "index: %ld value: %lx\n",
-						rtp[c].index, (ulong)rtp[c].value);
-				addr = (ulong)rtp[c].value;
+						lp[c].index, (ulong)lp[c].value);
+				addr = (ulong)lp[c].value;
 				break;
 			}
 		}
 
-		FREEBUF(rtp);
+		FREEBUF(lp);
 	} else {
 		error(FATAL,
 		    "neither irq_desc, _irq_desc, irq_desc_ptrs "
@@ -10323,6 +10351,14 @@ paravirt_init(void)
 			error(INFO, "pv_init_ops exists: ARCH_PVOPS\n");
 		kt->flags |= ARCH_PVOPS;
 	}
+	/*
+	 * pv_init_ops moved to first entry in pv_ops as of 4.20-rc1
+	 */
+	if (kernel_symbol_exists("pv_ops")) {
+		if (CRASHDEBUG(1))
+			error(INFO, "pv_ops exists: ARCH_PVOPS\n");
+		kt->flags |= ARCH_PVOPS;
+	}
 }
 
 /*
@@ -10359,7 +10395,7 @@ get_xtime(struct timespec *date)
 static void 
 hypervisor_init(void)
 {
-	ulong x86_hyper, name, pv_init_ops;
+	ulong x86_hyper, name, pv_init_ops, pv_ops;
 	char buf[BUFSIZE], *p1;
 
 	kt->hypervisor = "(undetermined)";
@@ -10383,9 +10419,16 @@ hypervisor_init(void)
 		kt->hypervisor = "Xen";
 	else if (KVMDUMP_DUMPFILE())
 		kt->hypervisor = "KVM";
-	else if (PVOPS() && readmem(symbol_value("pv_init_ops"), KVADDR, 
+	else if (PVOPS() && symbol_exists("pv_init_ops") &&
+	    readmem(symbol_value("pv_init_ops"), KVADDR, 
 	    &pv_init_ops, sizeof(void *), "pv_init_ops", RETURN_ON_ERROR) &&
 	    (p1 = value_symbol(pv_init_ops)) &&
+	    STREQ(p1, "native_patch"))
+		kt->hypervisor = "bare hardware";
+	else if (PVOPS() && symbol_exists("pv_ops") &&
+	    readmem(symbol_value("pv_ops"), KVADDR, 
+	    &pv_ops, sizeof(void *), "pv_ops", RETURN_ON_ERROR) &&
+	    (p1 = value_symbol(pv_ops)) &&
 	    STREQ(p1, "native_patch"))
 		kt->hypervisor = "bare hardware";
 
