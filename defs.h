@@ -4823,6 +4823,7 @@ void cmd_mlx(void);          /* net.c */
 void cmd_ingress(void);      /* net.c */
 void cmd_tc(void);           /* net.c */
 void cmd_array(void);        /* net.c */
+void cmd_rtnl(void);        /* net.c */
 void cmd_hash(void);         /* net.c */
 void cmd_extend(void);       /* extensions.c */
 #if defined(S390) || defined(S390X)

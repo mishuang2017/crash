@@ -100,6 +100,7 @@ struct command_table_entry linux_command_table[] = {
 	{"in",      cmd_ingress, help_net,      REFRESH_TASK_TABLE},
 	{"tc",      cmd_tc,      help_net,      REFRESH_TASK_TABLE},
 	{"array",   cmd_array,   help_net,      REFRESH_TASK_TABLE},
+	{"rtnl",    cmd_rtnl,    help_net,      REFRESH_TASK_TABLE},
 	{"hash",    cmd_hash,    help_net,      REFRESH_TASK_TABLE},
 	{"p",       cmd_p,       help_p,       0},
 	{"ps",      cmd_ps,      help_ps,      REFRESH_TASK_TABLE},

@@ -2414,3 +2414,14 @@ cmd_array(void)
 		}
 	}
 }
+
+void
+cmd_rtnl(void)
+{
+	ulong handlers = read_pointer1(symbol_value("rtnl_msg_handlers"));
+
+	fprintf(fp, "array %lx -s rtnl_link -n 50 -p\n", handlers);
+
+	handlers = read_pointer1(symbol_value("rtnl_msg_handlers") + 0x10);
+	fprintf(fp, "array %lx -s rtnl_link -n 50 -p\n", handlers);
+}
