@@ -2011,7 +2011,6 @@ void show_hash(ulong a, char *opt_s, char *opt_m, int print)
 	}
 }
 
-int ofed = 0;
 void show_ingress(ulong net_addr)
 {
 	ulong ingress_queue = read_pointer2(net_addr, "net_device", "ingress_queue");
@@ -2070,11 +2069,12 @@ void show_ingress(ulong net_addr)
 void show_mlx(ulong net_addr)
 {
 	ulong mlx5e_priv = net_addr + SIZE(net_device);
+	int centos = 0;
 
 	struct new_utsname *uts;
 	uts = &kt->utsname;
 	if (strncmp(uts->release, "3.10.0", 6) == 0) {
-		ofed = 1;
+		centos = 1;
 		fprintf(fp, "%s\n", uts->release);
 	}
 
@@ -2117,7 +2117,7 @@ void show_mlx(ulong net_addr)
 		fprintf(fp, "mlx5_eswitch_rep  %lx\n", rep + STRUCT_SIZE("mlx5_eswitch_rep"));
 		fprintf(fp, "mlx5_eswitch_rep  %lx\n", rep + STRUCT_SIZE("mlx5_eswitch_rep") * 2);
 
-		if (ofed == 0) {
+		if (centos == 0) {
 			ulong mlx5e_rep_priv = read_pointer2(rep, "mlx5_eswitch_rep_if", "priv");
 			fprintf(fp, "mlx5e_rep_priv  %lx\n", mlx5e_rep_priv);
 			ulong ht = mlx5e_rep_priv + MEMBER_OFFSET("mlx5e_rep_priv", "tc_ht");
@@ -2270,6 +2270,14 @@ cmd_tc(void)
 	int eg = 0;
 	int help = 0, print = 0;
 	ulong net_ns_p = symbol_value("init_net");
+	int centos = 0;
+
+	struct new_utsname *uts;
+	uts = &kt->utsname;
+	if (strncmp(uts->release, "3.10.0", 6) == 0) {
+		centos = 1;
+		fprintf(fp, "%s\n", uts->release);
+	}
 
 	while ((c = getopt(argcnt, args, "i:eph")) != EOF) {
 		switch (c) {
@@ -2280,6 +2288,7 @@ cmd_tc(void)
 		case 'e':
 			eg = 1;
 			i = read_pointer1(symbol_value("tcf_action_net_id"));
+			fprintf(fp, "tcf_action_net_id: %d\n", i);
 			break;
 		case 'p':
 			print = 1;
@@ -2311,8 +2320,12 @@ cmd_tc(void)
 	}
 
 	ulong gen = read_pointer2(net_ns_p, "net", "gen");
-	fprintf(fp, "net_generic %lx\n", gen);
-	ulong tc_action_net = read_pointer1(gen + i * 8);
+	fprintf(fp, "struct net_generic %lx\n", gen);
+	ulong ptr = gen + MEMBER_OFFSET("net_generic", "ptr");
+	fprintf(fp, "ptr: %lx\n", ptr);
+	if (centos)
+		i--;
+	ulong tc_action_net = read_pointer1(ptr + i * 8);
 
 /* 	fprintf(fp, "eg %d, i: %d\n", eg, i); */
 	if (eg) {
