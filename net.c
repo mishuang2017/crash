@@ -2018,28 +2018,6 @@ void show_ingress(ulong net_addr)
 	fprintf(fp, "net_device.ingress_queue\n");
 	fprintf(fp, "netdev_queue  %lx\n", ingress_queue);
 
-#if 0
-	// for centos 7.2
-	if (ofed == 1 && ingress_queue) {
-		fprintf(fp, "for centos 7.2\n");
-		ulong qdisc_sleep = read_pointer2(ingress_queue, "netdev_queue", "qdisc_sleeping");
-		fprintf(fp, "Qdisc %lx\n", qdisc_sleep);
-		ulong ingress_qdisc_data = qdisc_sleep + STRUCT_SIZE("Qdisc");
-		fprintf(fp, "ingress_qdisc_data %lx\n", ingress_qdisc_data);
-		ulong tcf_proto = read_pointer1(qdisc_sleep + STRUCT_SIZE("Qdisc"));
-		fprintf(fp, "tcf_proto %lx\n", tcf_proto);
-		ulong cls_fl_head = read_pointer2(tcf_proto, "tcf_proto", "root");
-		fprintf(fp, "cls_fl_head %lx\n", cls_fl_head);
-
-		ulong cls_fl_filter = cls_fl_head + MEMBER_OFFSET("cls_fl_head", "filters");
-		fprintf(fp, "list -H %lx\n", cls_fl_filter);
-		fprintf(fp, "list -H %lx | wc -l\n", cls_fl_filter);
-		fprintf(fp, "list -H %lx -l cls_fl_filter.list -s cls_fl_filter\n", cls_fl_filter);
-		return;
-	}
-#endif
-
-	// for upstream
 	if (!ingress_queue)
 		return;
 
@@ -2095,7 +2073,7 @@ void show_mlx(ulong net_addr)
 
 	struct new_utsname *uts;
 	uts = &kt->utsname;
-	if (strncmp(uts->release, "3.10.0-327.el7.x86_64", 6) == 0) {
+	if (strncmp(uts->release, "3.10.0", 6) == 0) {
 		ofed = 1;
 		fprintf(fp, "%s\n", uts->release);
 	}
@@ -2278,6 +2256,8 @@ cmd_ingress(void)
 	addr = get_netdev_addr(name);
 	if (addr)
 		show_ingress(addr);
+	else
+		fprintf(fp, "name: %s, addr: %lx\n", name, addr);
 
 }
 
