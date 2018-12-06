@@ -1797,6 +1797,27 @@ read_pointer2(ulong addr, char *type, char *member)
         return val;
 }
 
+static int
+read_int(ulong addr, char *type, char *member)
+{
+        int offset;
+        char *buf;
+        int val;
+
+        offset = MEMBER_OFFSET(type, member);
+        buf = malloc(offset+sizeof(ulong));
+
+        if (buf == NULL)
+                return 0;
+
+        readmem(addr, KVADDR, buf, offset + sizeof(int), "addr", FAULT_ON_ERROR);
+
+        val =  *((int *)&buf[offset]);
+        free(buf);
+
+        return val;
+}
+
 void
 cmd_flow(void)
 {
@@ -2013,6 +2034,27 @@ void show_hash(ulong a, char *opt_s, char *opt_m, int print)
 
 void show_ingress(ulong net_addr)
 {
+	int centos = 0;
+	int print = 0;
+	int c;
+
+	while ((c = getopt(argcnt, args, "p")) != EOF) {
+		switch (c) {
+		case 'p':
+			print = 1;
+			break;
+		default:
+			return;
+		}
+	}
+
+	struct new_utsname *uts;
+	uts = &kt->utsname;
+	if (strncmp(uts->release, "3.10.0", 6) == 0) {
+		centos = 1;
+		fprintf(fp, "%s\n", uts->release);
+	}
+
 	ulong ingress_queue = read_pointer2(net_addr, "net_device", "ingress_queue");
 	fprintf(fp, "net_device.ingress_queue\n");
 	fprintf(fp, "netdev_queue  %lx\n", ingress_queue);
@@ -2060,10 +2102,36 @@ void show_ingress(ulong net_addr)
 	fprintf(fp, "list -H filters -s cls_fl_filter -o cls_fl_filter.list\n");
 
 	ulong idr = cls_fl_head + MEMBER_OFFSET("cls_fl_head", "handle_idr");
-	fprintf(fp, "idr  %lx\n", idr);
-	fprintf(fp, "tree -t ra %lx -s cls_fl_filter\n", idr);
-	ulong radix = read_pointer2(idr, "radix_tree_root", "rnode");
-	fprintf(fp, "radix_tree_node  %lx\n", radix & ~1UL);
+
+	if (centos) {
+		int i, count;
+		ulong filter, ary;
+
+		fprintf(fp, "idr_ext %lx\n", idr);
+		ulong idr_layer = read_pointer1(idr);
+		fprintf(fp, "idr_layer %lx\n", idr_layer);
+		count = read_int(idr_layer, "idr_layer", "count");
+		fprintf(fp, "count %d\n", count);
+		ary = idr_layer + MEMBER_OFFSET("idr_layer", "ary") + 8;
+		for (i = 0 ; i < count; i++) {
+			filter = read_pointer1(ary);
+			fprintf(fp, "cls_fl_filter %lx\n", filter);
+			ary += 8;
+		}
+		if (print) {
+			ary = idr_layer + MEMBER_OFFSET("idr_layer", "ary") + 8;
+			for (i = 0 ; i < count; i++) {
+				filter = read_pointer1(ary);
+				print_struct("cls_fl_filter", filter);
+				ary += 8;
+			}
+		}
+	} else {
+		fprintf(fp, "idr %lx\n", idr);
+		fprintf(fp, "tree -t ra %lx -s cls_fl_filter\n", idr);
+		ulong radix = read_pointer2(idr, "radix_tree_root", "rnode");
+		fprintf(fp, "radix_tree_node  %lx\n", radix & ~1UL);
+	}
 }
 
 void show_mlx(ulong net_addr)
