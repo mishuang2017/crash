@@ -2270,14 +2270,17 @@ void show_mlx(ulong net_addr)
 
 	ulong  txq = read_pointer2(qdisc, "Qdisc", "dev_queue");
 	fprintf(fp, "tx-0, net_device._tx\n");
-	fprintf(fp, "netdev_queue  %lx\n", txq);
+	fprintf(fp, "netdev_queue %lx\n", txq);
 
 	ulong channels = mlx5e_priv + MEMBER_OFFSET("mlx5e_priv", "channels");
-	fprintf(fp, "mlx5e_channels  %lx\n", channels);
+	fprintf(fp, "mlx5e_channels %lx\n", channels);
 
 	ulong channel1 = read_pointer1(channels);
 	channel1 = read_pointer1(channel1);
-	fprintf(fp, "mlx5e_channel.sq  %lx\n", channel1);
+	fprintf(fp, "mlx5e_channel.sq %lx\n", channel1);
+
+	ulong mlx5e_ch_stats = read_pointer2(channel1, "mlx5e_channel", "stats");
+	fprintf(fp, "mlx5e_ch_stats %lx\n", mlx5e_ch_stats);
 
 	ulong sq = channel1 + MEMBER_OFFSET("mlx5e_channel", "sq");
 	fprintf(fp, "mlx5e_txqsq  %lx\n", sq);
