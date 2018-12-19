@@ -2138,6 +2138,7 @@ void show_mlx(ulong net_addr)
 {
 	ulong mlx5e_priv = net_addr + SIZE(net_device);
 	int centos = 0;
+	int i;
 
 	struct new_utsname *uts;
 	uts = &kt->utsname;
@@ -2275,18 +2276,26 @@ void show_mlx(ulong net_addr)
 	ulong channels = mlx5e_priv + MEMBER_OFFSET("mlx5e_priv", "channels");
 	fprintf(fp, "mlx5e_channels %lx\n", channels);
 
-	ulong channel1 = read_pointer1(channels);
-	channel1 = read_pointer1(channel1);
-	fprintf(fp, "mlx5e_channel.sq %lx\n", channel1);
+	int num = read_int(channels, "mlx5e_channels", "num");
+	fprintf(fp, "mlx5e_channels num %d\n", num);
+	num = 1;
+	ulong channels_p = read_pointer2(channels, "mlx5e_channels", "c");
 
-	ulong mlx5e_ch_stats = read_pointer2(channel1, "mlx5e_channel", "stats");
-	fprintf(fp, "mlx5e_ch_stats %lx\n", mlx5e_ch_stats);
+	for (i = 0; i < num; i++) {
+		fprintf(fp, "=== %d ===\n", i);
+		ulong channel1 = read_pointer1(channels_p + i*8);
+		fprintf(fp, "mlx5e_channel.sq %lx\n", channel1);
 
-	ulong sq = channel1 + MEMBER_OFFSET("mlx5e_channel", "sq");
-	fprintf(fp, "mlx5e_txqsq  %lx\n", sq);
+		ulong mlx5e_ch_stats = read_pointer2(channel1, "mlx5e_channel", "stats");
+		fprintf(fp, "mlx5e_ch_stats %lx\n", mlx5e_ch_stats);
+		print_struct("mlx5e_ch_stats", mlx5e_ch_stats);
 
-	ulong rq = channel1 + MEMBER_OFFSET("mlx5e_channel", "rq");
-	fprintf(fp, "mlx5e_rq  %lx\n", rq);
+		ulong sq = channel1 + MEMBER_OFFSET("mlx5e_channel", "sq");
+		fprintf(fp, "mlx5e_txqsq  %lx\n", sq);
+
+		ulong rq = channel1 + MEMBER_OFFSET("mlx5e_channel", "rq");
+		fprintf(fp, "mlx5e_rq  %lx\n", rq);
+	}
 
 	show_ingress(net_addr);
 }
