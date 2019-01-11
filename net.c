@@ -2023,12 +2023,15 @@ void show_hash(ulong a, char *opt_s, char *opt_m, int print)
 
 	for (i = 0; i < size; i++) {
 		rhash_head = read_pointer1(buckets + i * 8);
-		if (rhash_head == i * 2 + 1 || rhash_head == 1 || rhash_head & 1)
-			continue;
-		if (print)
-			print_struct(opt_s, rhash_head - offset);
-		else
+		while (1)  {
+			if (rhash_head & 1)
+				break;
+			if (print)
+				print_struct(opt_s, rhash_head - offset);
+			else
 			fprintf(fp, "%s %lx\n", opt_s, rhash_head - offset);
+			rhash_head = read_pointer1(rhash_head + offset);
+		}
 	}
 }
 
