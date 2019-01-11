@@ -2243,6 +2243,8 @@ void show_mlx(ulong net_addr)
 		} else {
 			ulong tc_ht = mlx5e_rep_priv + MEMBER_OFFSET("mlx5e_rep_priv", "tc_ht");
 			fprintf(fp, "hash %lx -s mlx5e_tc_flow -m node\n", tc_ht);
+			ulong mf_ht = mlx5e_rep_priv + MEMBER_OFFSET("mlx5e_rep_priv", "mf_ht");
+			fprintf(fp, "hash %lx -s mlx5e_miniflow -m node\n", mf_ht);
 		}
 
 		fprintf(fp, "mlx5_esw_offload.num_flows,encap  %lx\n", offloads);
