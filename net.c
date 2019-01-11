@@ -2023,7 +2023,7 @@ void show_hash(ulong a, char *opt_s, char *opt_m, int print)
 
 	for (i = 0; i < size; i++) {
 		rhash_head = read_pointer1(buckets + i * 8);
-		if (rhash_head == i * 2 + 1 || rhash_head == 1)
+		if (rhash_head == i * 2 + 1 || rhash_head == 1 || rhash_head & 1)
 			continue;
 		if (print)
 			print_struct(opt_s, rhash_head - offset);
@@ -2185,13 +2185,6 @@ void show_mlx(ulong net_addr)
 		fprintf(fp, "mlx5_eswitch_rep  %lx\n", rep);
 		fprintf(fp, "mlx5_eswitch_rep  %lx\n", rep + STRUCT_SIZE("mlx5_eswitch_rep"));
 		fprintf(fp, "mlx5_eswitch_rep  %lx\n", rep + STRUCT_SIZE("mlx5_eswitch_rep") * 2);
-
-		if (centos == 0) {
-			ulong mlx5e_rep_priv = read_pointer2(rep, "mlx5_eswitch_rep_if", "priv");
-			fprintf(fp, "mlx5e_rep_priv  %lx\n", mlx5e_rep_priv);
-			ulong ht = mlx5e_rep_priv + MEMBER_OFFSET("mlx5e_rep_priv", "tc_ht");
-			fprintf(fp, "hash %lx -s mlx5e_tc_flow -m node\n", ht);
-		}
 	}
 
 	ulong mdev = read_pointer2(mlx5e_priv, "mlx5e_priv", "mdev");
@@ -2239,9 +2232,15 @@ void show_mlx(ulong net_addr)
 		fprintf(fp, "mlx5_eswitch_rep_if %lx\n", rep_if);
 		ulong mlx5e_rep_priv = read_pointer2(rep_if, "mlx5_eswitch_rep_if", "priv");
 		fprintf(fp, "mlx5e_rep_priv %lx\n", mlx5e_rep_priv);
-		fprintf(fp, "mlx5e_rep_priv.tc_ht %lx -o\n", mlx5e_rep_priv);
-		ulong tc_ht = mlx5e_rep_priv + MEMBER_OFFSET("mlx5e_rep_priv", "tc_ht");
-		fprintf(fp, "hash %lx -s mlx5e_tc_flow -m node\n", tc_ht);
+
+		if (centos == 0) {
+			ulong uplink_priv = mlx5e_rep_priv + MEMBER_OFFSET("mlx5e_rep_priv", "uplink_priv");
+			ulong tc_ht = uplink_priv + MEMBER_OFFSET("mlx5_rep_uplink_priv", "tc_ht");
+			fprintf(fp, "hash %lx -s mlx5e_tc_flow -m node\n", tc_ht);
+		} else {
+			ulong tc_ht = mlx5e_rep_priv + MEMBER_OFFSET("mlx5e_rep_priv", "tc_ht");
+			fprintf(fp, "hash %lx -s mlx5e_tc_flow -m node\n", tc_ht);
+		}
 
 		fprintf(fp, "mlx5_esw_offload.num_flows,encap  %lx\n", offloads);
 		fprintf(fp, "repeat -1 mlx5_esw_offload.num_flows -d %lx\n", offloads);
