@@ -2030,7 +2030,7 @@ void show_hash(ulong a, char *opt_s, char *opt_m, int print)
 				print_struct(opt_s, rhash_head - offset);
 			else
 			fprintf(fp, "%s %lx\n", opt_s, rhash_head - offset);
-			rhash_head = read_pointer1(rhash_head + offset);
+			rhash_head = read_pointer1(rhash_head);
 		}
 	}
 }
