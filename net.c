@@ -2131,7 +2131,7 @@ void show_ingress(ulong net_addr)
 		}
 	} else {
 		fprintf(fp, "idr %lx\n", idr);
-		fprintf(fp, "tree -t ra %lx -s cls_fl_filter\n", idr);
+		fprintf(fp, "tree -t xarray %lx -s cls_fl_filter\n", idr);
 		ulong radix = read_pointer2(idr, "radix_tree_root", "rnode");
 		fprintf(fp, "radix_tree_node  %lx\n", radix & ~1UL);
 	}
