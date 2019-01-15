@@ -1818,6 +1818,48 @@ read_int(ulong addr, char *type, char *member)
         return val;
 }
 
+static unsigned int
+read_u32(ulong addr, char *type, char *member)
+{
+        int offset;
+        char *buf;
+        unsigned int val;
+
+        offset = MEMBER_OFFSET(type, member);
+        buf = malloc(offset+sizeof(ulong));
+
+        if (buf == NULL)
+                return 0;
+
+        readmem(addr, KVADDR, buf, offset + sizeof(unsigned int), "addr", FAULT_ON_ERROR);
+
+        val =  *((int *)&buf[offset]);
+        free(buf);
+
+        return val;
+}
+
+static unsigned short
+read_u16(ulong addr, char *type, char *member)
+{
+        int offset;
+        char *buf;
+        unsigned short val;
+
+        offset = MEMBER_OFFSET(type, member);
+        buf = malloc(offset+sizeof(ulong));
+
+        if (buf == NULL)
+                return 0;
+
+        readmem(addr, KVADDR, buf, offset + sizeof(unsigned short), "addr", FAULT_ON_ERROR);
+
+        val =  *((int *)&buf[offset]);
+        free(buf);
+
+        return val;
+}
+
 void
 cmd_flow(void)
 {
@@ -2098,43 +2140,54 @@ void show_ingress(ulong net_addr)
 
 	fprintf(fp, "list tcf_proto.next %lx -s tcf_proto\n", tcf_block);
 
-	ulong cls_fl_head = read_pointer2(tcf_block, "tcf_proto", "root");
-	fprintf(fp, "cls_fl_head  %lx\n", cls_fl_head);
-	ulong ht = cls_fl_head + MEMBER_OFFSET("cls_fl_head", "ht");
-	fprintf(fp, "hash %lx -s fl_flow_mask -m ht_node\n", ht);
-	fprintf(fp, "list -H filters -s cls_fl_filter -o cls_fl_filter.list\n");
+	unsigned short protocol;
+	unsigned int prio;
+	ulong proto = tcf_block;
+	do {
+		fprintf(fp, "tcf_proto %lx\n", proto);
+		prio = read_u32(proto, "tcf_proto", "prio");
+		protocol = read_u16(proto, "tcf_proto", "protocol");
+		fprintf(fp, "\n=== %x, %x ===\n", prio, protocol);
 
-	ulong idr = cls_fl_head + MEMBER_OFFSET("cls_fl_head", "handle_idr");
+		ulong cls_fl_head = read_pointer2(proto, "tcf_proto", "root");
+		fprintf(fp, "cls_fl_head  %lx\n", cls_fl_head);
+		ulong ht = cls_fl_head + MEMBER_OFFSET("cls_fl_head", "ht");
+		fprintf(fp, "hash %lx -s fl_flow_mask -m ht_node\n", ht);
+		fprintf(fp, "list -H filters -s cls_fl_filter -o cls_fl_filter.list\n");
 
-	if (centos) {
-		int i, count;
-		ulong filter, ary;
+		ulong idr = cls_fl_head + MEMBER_OFFSET("cls_fl_head", "handle_idr");
 
-		fprintf(fp, "idr_ext %lx\n", idr);
-		ulong idr_layer = read_pointer1(idr);
-		fprintf(fp, "idr_layer %lx\n", idr_layer);
-		count = read_int(idr_layer, "idr_layer", "count");
-		fprintf(fp, "count %d\n", count);
-		ary = idr_layer + MEMBER_OFFSET("idr_layer", "ary") + 8;
-		for (i = 0 ; i < count; i++) {
-			filter = read_pointer1(ary);
-			fprintf(fp, "cls_fl_filter %lx\n", filter);
-			ary += 8;
-		}
-		if (print) {
+		if (centos) {
+			int i, count;
+			ulong filter, ary;
+
+			fprintf(fp, "idr_ext %lx\n", idr);
+			ulong idr_layer = read_pointer1(idr);
+			fprintf(fp, "idr_layer %lx\n", idr_layer);
+			count = read_int(idr_layer, "idr_layer", "count");
+			fprintf(fp, "count %d\n", count);
 			ary = idr_layer + MEMBER_OFFSET("idr_layer", "ary") + 8;
 			for (i = 0 ; i < count; i++) {
 				filter = read_pointer1(ary);
-				print_struct("cls_fl_filter", filter);
+				fprintf(fp, "cls_fl_filter %lx\n", filter);
 				ary += 8;
 			}
+			if (print) {
+				ary = idr_layer + MEMBER_OFFSET("idr_layer", "ary") + 8;
+				for (i = 0 ; i < count; i++) {
+					filter = read_pointer1(ary);
+					print_struct("cls_fl_filter", filter);
+					ary += 8;
+				}
+			}
+		} else {
+			fprintf(fp, "idr %lx\n", idr);
+			fprintf(fp, "tree -t xarray %lx -s cls_fl_filter\n", idr);
+			ulong radix = read_pointer2(idr, "radix_tree_root", "rnode");
+			fprintf(fp, "radix_tree_node  %lx\n", radix & ~1UL);
 		}
-	} else {
-		fprintf(fp, "idr %lx\n", idr);
-		fprintf(fp, "tree -t xarray %lx -s cls_fl_filter\n", idr);
-		ulong radix = read_pointer2(idr, "radix_tree_root", "rnode");
-		fprintf(fp, "radix_tree_node  %lx\n", radix & ~1UL);
-	}
+		proto = read_pointer2(proto, "tcf_proto", "next");
+	} while (proto);
 }
 
 void show_mlx(ulong net_addr)
