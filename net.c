@@ -2079,9 +2079,12 @@ void show_hash(ulong a, char *opt_s, char *opt_m, int print)
 
 void show_ingress(ulong net_addr)
 {
+	struct list_data chain, *ld;
 	int centos = 0;
 	int print = 0;
-	int c;
+	int c, i, n;
+	ulong tcf_proto, proto;
+	ulong tcf_chain;
 
 	while ((c = getopt(argcnt, args, "p")) != EOF) {
 		switch (c) {
@@ -2130,59 +2133,80 @@ void show_ingress(ulong net_addr)
 	ulong chain_list = tcf_block + MEMBER_OFFSET("tcf_block", "chain_list");
 	fprintf(fp, "list -H %lx -o tcf_chain.list -s tcf_chain\n", chain_list);
 
+#if 0
 	ulong miniq = read_pointer2(net_addr, "net_device", "miniq_ingress");
 	if (!miniq)
 		return;
 	fprintf(fp, "mini_Qdisc  %lx\n", miniq);
 
-	tcf_block = read_pointer2(miniq, "mini_Qdisc", "filter_list");
+	tcf_proto = read_pointer2(miniq, "mini_Qdisc", "filter_list");
+#endif
 
-	fprintf(fp, "list tcf_proto.next %lx -s tcf_proto\n", tcf_block);
+	ld =  &chain;
+	BZERO(ld, sizeof(struct list_data));
+	ld->flags |= LIST_ALLOCATE;
+	ld->start = ld->end = chain_list;
+	ld->list_head_offset = MEMBER_OFFSET("tcf_chain", "list");
+	n = do_list(ld);
+	for (i = 1; i < n; i++) {
+		unsigned short index;
 
-	unsigned short protocol;
-	unsigned int prio;
-	ulong proto = tcf_block;
-	do {
-		prio = read_u32(proto, "tcf_proto", "prio");
-		protocol = read_u16(proto, "tcf_proto", "protocol");
-		fprintf(fp, "\n=== %x, %x ===\n", prio, protocol);
-		fprintf(fp, "tcf_proto %lx\n", proto);
+		tcf_chain = ld->list_ptr[i];
+		fprintf(fp, "\ntcf_chain %lx\n", tcf_chain);
+		index = read_u32(tcf_chain, "tcf_chain", "index");
+		fprintf(fp, "====== chain %x ======\n", index);
 
-		ulong cls_fl_head = read_pointer2(proto, "tcf_proto", "root");
-		fprintf(fp, "cls_fl_head  %lx\n", cls_fl_head);
-		ulong ht = cls_fl_head + MEMBER_OFFSET("cls_fl_head", "ht");
-		fprintf(fp, "hash %lx -s fl_flow_mask -m ht_node\n", ht);
+		tcf_proto = read_pointer2(tcf_chain, "tcf_chain", "filter_chain");
 
-		ulong idr = cls_fl_head + MEMBER_OFFSET("cls_fl_head", "handle_idr");
+		fprintf(fp, "list tcf_proto.next %lx -s tcf_proto\n", tcf_proto);
 
-		if (centos) {
-			int i, count;
-			ulong filter, ary;
+		unsigned short protocol;
+		unsigned int prio;
+		proto = tcf_proto;
+		do {
+			prio = ntohl(read_u32(proto, "tcf_proto", "prio"));
+			protocol = ntohs(read_u16(proto, "tcf_proto", "protocol"));
+			fprintf(fp, "\n\t=== %x, %x ===\n", prio, protocol);
+			fprintf(fp, "\ttcf_proto %lx\n", proto);
 
-			fprintf(fp, "idr_ext %lx\n", idr);
-			ulong idr_layer = read_pointer1(idr);
-			fprintf(fp, "idr_layer %lx\n", idr_layer);
-			count = read_int(idr_layer, "idr_layer", "count");
-			fprintf(fp, "count %d\n", count);
-			ary = idr_layer + MEMBER_OFFSET("idr_layer", "ary") + 8;
-			for (i = 0 ; i < count; i++) {
-				filter = read_pointer1(ary);
-				fprintf(fp, "cls_fl_filter %lx\n", filter);
-				ary += 8;
-			}
-			if (print) {
+			ulong cls_fl_head = read_pointer2(proto, "tcf_proto", "root");
+			fprintf(fp, "\tcls_fl_head  %lx\n", cls_fl_head);
+			ulong ht = cls_fl_head + MEMBER_OFFSET("cls_fl_head", "ht");
+			fprintf(fp, "\thash %lx -s fl_flow_mask -m ht_node\n", ht);
+
+			ulong idr = cls_fl_head + MEMBER_OFFSET("cls_fl_head", "handle_idr");
+
+			if (centos) {
+				int i, count;
+				ulong filter, ary;
+
+				fprintf(fp, "\tidr_ext %lx\n", idr);
+				ulong idr_layer = read_pointer1(idr);
+				fprintf(fp, "\tidr_layer %lx\n", idr_layer);
+				count = read_int(idr_layer, "idr_layer", "count");
+				fprintf(fp, "\tcount %d\n", count);
 				ary = idr_layer + MEMBER_OFFSET("idr_layer", "ary") + 8;
 				for (i = 0 ; i < count; i++) {
 					filter = read_pointer1(ary);
-					print_struct("cls_fl_filter", filter);
+					fprintf(fp, "cls_fl_filter %lx\n", filter);
 					ary += 8;
 				}
+				if (print) {
+					ary = idr_layer + MEMBER_OFFSET("idr_layer", "ary") + 8;
+					for (i = 0 ; i < count; i++) {
+						filter = read_pointer1(ary);
+						print_struct("cls_fl_filter", filter);
+						ary += 8;
+					}
+				}
+			} else {
+				fprintf(fp, "\ttree -t xarray %lx -s cls_fl_filter\n", idr);
 			}
-		} else {
-			fprintf(fp, "tree -t xarray %lx -s cls_fl_filter\n", idr);
-		}
-		proto = read_pointer2(proto, "tcf_proto", "next");
-	} while (proto);
+			proto = read_pointer2(proto, "tcf_proto", "next");
+		} while (proto);
+	}
+
+	FREEBUF(ld->list_ptr);
 }
 
 void show_mlx(ulong net_addr)
