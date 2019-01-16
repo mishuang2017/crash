@@ -2129,7 +2129,6 @@ void show_ingress(ulong net_addr)
 
 	ulong chain_list = tcf_block + MEMBER_OFFSET("tcf_block", "chain_list");
 	fprintf(fp, "list -H %lx -o tcf_chain.list -s tcf_chain\n", chain_list);
-	fprintf(fp, "list tcf_proto.next filter_chain_addr -s tcf_proto\n\n");
 
 	ulong miniq = read_pointer2(net_addr, "net_device", "miniq_ingress");
 	if (!miniq)
@@ -2144,16 +2143,15 @@ void show_ingress(ulong net_addr)
 	unsigned int prio;
 	ulong proto = tcf_block;
 	do {
-		fprintf(fp, "tcf_proto %lx\n", proto);
 		prio = read_u32(proto, "tcf_proto", "prio");
 		protocol = read_u16(proto, "tcf_proto", "protocol");
 		fprintf(fp, "\n=== %x, %x ===\n", prio, protocol);
+		fprintf(fp, "tcf_proto %lx\n", proto);
 
 		ulong cls_fl_head = read_pointer2(proto, "tcf_proto", "root");
 		fprintf(fp, "cls_fl_head  %lx\n", cls_fl_head);
 		ulong ht = cls_fl_head + MEMBER_OFFSET("cls_fl_head", "ht");
 		fprintf(fp, "hash %lx -s fl_flow_mask -m ht_node\n", ht);
-		fprintf(fp, "list -H filters -s cls_fl_filter -o cls_fl_filter.list\n");
 
 		ulong idr = cls_fl_head + MEMBER_OFFSET("cls_fl_head", "handle_idr");
 
@@ -2181,10 +2179,7 @@ void show_ingress(ulong net_addr)
 				}
 			}
 		} else {
-			fprintf(fp, "idr %lx\n", idr);
 			fprintf(fp, "tree -t xarray %lx -s cls_fl_filter\n", idr);
-			ulong radix = read_pointer2(idr, "radix_tree_root", "rnode");
-			fprintf(fp, "radix_tree_node  %lx\n", radix & ~1UL);
 		}
 		proto = read_pointer2(proto, "tcf_proto", "next");
 	} while (proto);
