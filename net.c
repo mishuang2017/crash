@@ -2185,7 +2185,7 @@ void show_ingress(ulong net_addr)
 				ary = idr_layer + MEMBER_OFFSET("idr_layer", "ary") + 8;
 				for (i = 0 ; i < count; i++) {
 					filter = read_pointer1(ary);
-					fprintf(fp, "cls_fl_filter %lx\n", filter);
+					fprintf(fp, "\tcls_fl_filter %lx\n", filter);
 					ary += 8;
 				}
 				if (print) {
