@@ -2083,7 +2083,7 @@ void show_ingress(ulong net_addr)
 	int centos = 0;
 	int print = 0;
 	int c, i, n;
-	ulong tcf_proto, proto;
+	ulong tcf_proto;
 	ulong tcf_chain;
 
 	while ((c = getopt(argcnt, args, "p")) != EOF) {
