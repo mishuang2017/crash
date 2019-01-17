@@ -2152,7 +2152,7 @@ void show_ingress(ulong net_addr)
 		tcf_chain = ld->list_ptr[i];
 		fprintf(fp, "\ntcf_chain %lx\n", tcf_chain);
 		index = read_u32(tcf_chain, "tcf_chain", "index");
-		fprintf(fp, "====== chain %x ======\n", index);
+		fprintf(fp, "====== chain %d ======\n", index);
 
 		tcf_proto = read_pointer2(tcf_chain, "tcf_chain", "filter_chain");
 
@@ -2179,6 +2179,8 @@ void show_ingress(ulong net_addr)
 
 				fprintf(fp, "\tidr_ext %lx\n", idr);
 				ulong idr_layer = read_pointer1(idr);
+				if (idr_layer == 0)
+					goto next;
 				fprintf(fp, "\tidr_layer %lx\n", idr_layer);
 				count = read_int(idr_layer, "idr_layer", "count");
 				fprintf(fp, "\tcount %d\n", count);
@@ -2199,6 +2201,7 @@ void show_ingress(ulong net_addr)
 			} else {
 				fprintf(fp, "\ttree -t xarray %lx -s cls_fl_filter\n", idr);
 			}
+next:
 			tcf_proto = read_pointer2(tcf_proto, "tcf_proto", "next");
 		} while (tcf_proto);
 	}
