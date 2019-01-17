@@ -2185,18 +2185,17 @@ void show_ingress(ulong net_addr)
 				count = read_int(idr_layer, "idr_layer", "count");
 				fprintf(fp, "\tcount %d\n", count);
 				ary = idr_layer + MEMBER_OFFSET("idr_layer", "ary") + 8;
-				for (i = 0 ; i < count; i++) {
+				i = 0;
+				while (i < count) {
 					filter = read_pointer1(ary);
-					fprintf(fp, "\tcls_fl_filter %lx\n", filter);
-					ary += 8;
-				}
-				if (print) {
-					ary = idr_layer + MEMBER_OFFSET("idr_layer", "ary") + 8;
-					for (i = 0 ; i < count; i++) {
-						filter = read_pointer1(ary);
-						print_struct("cls_fl_filter", filter);
-						ary += 8;
+					if (filter) {
+						if (print)
+							print_struct("cls_fl_filter", filter);
+						else
+							fprintf(fp, "\tcls_fl_filter %lx\n", filter);
+						i++;
 					}
+					ary += 8;
 				}
 			} else {
 				fprintf(fp, "\ttree -t xarray %lx -s cls_fl_filter\n", idr);
