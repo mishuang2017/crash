@@ -2326,7 +2326,11 @@ void show_mlx(ulong net_addr)
 
 		ulong encap_tbl = offloads + MEMBER_OFFSET("mlx5_esw_offload", "encap_tbl");
 		fprintf(fp, "encap_tbl  %lx\n", encap_tbl);
-		fprintf(fp, "list 0xffff8810325d8200 -o 0x30 -s mlx5e_encap_entry\n");
+		for (i = 0; i < 128; i++) {
+			ulong t = read_pointer1(encap_tbl + i * 8);
+			if (t)
+				fprintf(fp, "list %lx -s mlx5e_encap_entry -l mlx5e_encap_entry.encap_hlist\n", t);
+		}
 
 		ulong mlx5_eswitch_fdb = esw + MEMBER_OFFSET("mlx5_eswitch", "fdb_table");
 		fprintf(fp, "mlx5_eswitch_fdb  %lx\n\n", mlx5_eswitch_fdb);
