@@ -2318,7 +2318,7 @@ void show_mlx(ulong net_addr)
 			fprintf(fp, "hash %lx -s mlx5e_miniflow -m node\n", mf_ht);
 		}
 
-		fprintf(fp, "mlx5_esw_offload.num_flows,encap  %lx\n", offloads);
+		fprintf(fp, "mlx5_esw_offload %lx\n", offloads);
 		fprintf(fp, "repeat -1 mlx5_esw_offload.num_flows -d %lx\n", offloads);
 
 		ulong vport_to_tir = read_pointer2(offloads, "mlx5_esw_offload", "ft_offloads");
