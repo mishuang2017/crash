@@ -2328,13 +2328,13 @@ void show_mlx(ulong net_addr)
 		ulong mod_hdr_tbl = offloads + MEMBER_OFFSET("mlx5_esw_offload", "mod_hdr_tbl");
 		fprintf(fp, "encap_tbl  %lx\n", encap_tbl);
 		fprintf(fp, "mod_hdr_tbl  %lx\n", mod_hdr_tbl);
-		for (i = 0; i < 128; i++) {
+		for (i = 0; i < 256; i++) {
 			ulong t = read_pointer1(encap_tbl + i * 8);
 			if (t)
 				fprintf(fp, "list %lx -s mlx5e_encap_entry -l mlx5e_encap_entry.encap_hlist\n", t);
 		}
 
-		for (i = 0; i < 128; i++) {
+		for (i = 0; i < 256; i++) {
 			ulong t = read_pointer1(mod_hdr_tbl + i * 8);
 			if (t)
 				fprintf(fp, "list %lx -s mlx5e_mod_hdr_entry -l mlx5e_mod_hdr_entry.mod_hdr_hlist\n", t);
