@@ -23,6 +23,7 @@
 
 extern void print_struct(char *, ulong);
 void show_mlx(ulong net_addr);
+void show_tcf_proto(ulong tcf_proto, int centos, int print);
 void show_ingress(ulong net_addr);
 void show_hash(ulong a, char *opt_s, char *opt_m, int print);
 
@@ -2077,6 +2078,57 @@ void show_hash(ulong a, char *opt_s, char *opt_m, int print)
 	}
 }
 
+void show_tcf_proto(ulong tcf_proto, int centos, int print)
+{
+	fprintf(fp, "list tcf_proto.next %lx -s tcf_proto\n", tcf_proto);
+
+	unsigned short protocol;
+	unsigned int prio;
+	do {
+		prio = ntohl(read_u32(tcf_proto, "tcf_proto", "prio"));
+		protocol = ntohs(read_u16(tcf_proto, "tcf_proto", "protocol"));
+		fprintf(fp, "\n\t=== %x, %x ===\n", prio, protocol);
+		fprintf(fp, "\ttcf_proto %lx\n", tcf_proto);
+
+		ulong cls_fl_head = read_pointer2(tcf_proto, "tcf_proto", "root");
+		fprintf(fp, "\tcls_fl_head  %lx\n", cls_fl_head);
+		ulong ht = cls_fl_head + MEMBER_OFFSET("cls_fl_head", "ht");
+		fprintf(fp, "\thash %lx -s fl_flow_mask -m ht_node\n", ht);
+
+		ulong idr = cls_fl_head + MEMBER_OFFSET("cls_fl_head", "handle_idr");
+
+		if (centos) {
+			int i, count;
+			ulong filter, ary;
+
+			fprintf(fp, "\tidr_ext %lx\n", idr);
+			ulong idr_layer = read_pointer1(idr);
+			if (idr_layer == 0)
+				goto next;
+			fprintf(fp, "\tidr_layer %lx\n", idr_layer);
+			count = read_int(idr_layer, "idr_layer", "count");
+			fprintf(fp, "\tcount %d\n", count);
+			ary = idr_layer + MEMBER_OFFSET("idr_layer", "ary") + 8;
+			i = 0;
+			while (i < count) {
+				filter = read_pointer1(ary);
+				if (filter) {
+					if (print)
+						print_struct("cls_fl_filter", filter);
+					else
+						fprintf(fp, "\tcls_fl_filter %lx\n", filter);
+					i++;
+				}
+				ary += 8;
+			}
+		} else {
+			fprintf(fp, "\ttree -t xarray %lx -s cls_fl_filter\n", idr);
+		}
+next:
+		tcf_proto = read_pointer2(tcf_proto, "tcf_proto", "next");
+	} while (tcf_proto);
+}
+
 void show_ingress(ulong net_addr)
 {
 	struct list_data chain, *ld;
@@ -2155,54 +2207,7 @@ void show_ingress(ulong net_addr)
 		fprintf(fp, "====== chain %d ======\n", index);
 
 		tcf_proto = read_pointer2(tcf_chain, "tcf_chain", "filter_chain");
-
-		fprintf(fp, "list tcf_proto.next %lx -s tcf_proto\n", tcf_proto);
-
-		unsigned short protocol;
-		unsigned int prio;
-		do {
-			prio = ntohl(read_u32(tcf_proto, "tcf_proto", "prio"));
-			protocol = ntohs(read_u16(tcf_proto, "tcf_proto", "protocol"));
-			fprintf(fp, "\n\t=== %x, %x ===\n", prio, protocol);
-			fprintf(fp, "\ttcf_proto %lx\n", tcf_proto);
-
-			ulong cls_fl_head = read_pointer2(tcf_proto, "tcf_proto", "root");
-			fprintf(fp, "\tcls_fl_head  %lx\n", cls_fl_head);
-			ulong ht = cls_fl_head + MEMBER_OFFSET("cls_fl_head", "ht");
-			fprintf(fp, "\thash %lx -s fl_flow_mask -m ht_node\n", ht);
-
-			ulong idr = cls_fl_head + MEMBER_OFFSET("cls_fl_head", "handle_idr");
-
-			if (centos) {
-				int i, count;
-				ulong filter, ary;
-
-				fprintf(fp, "\tidr_ext %lx\n", idr);
-				ulong idr_layer = read_pointer1(idr);
-				if (idr_layer == 0)
-					goto next;
-				fprintf(fp, "\tidr_layer %lx\n", idr_layer);
-				count = read_int(idr_layer, "idr_layer", "count");
-				fprintf(fp, "\tcount %d\n", count);
-				ary = idr_layer + MEMBER_OFFSET("idr_layer", "ary") + 8;
-				i = 0;
-				while (i < count) {
-					filter = read_pointer1(ary);
-					if (filter) {
-						if (print)
-							print_struct("cls_fl_filter", filter);
-						else
-							fprintf(fp, "\tcls_fl_filter %lx\n", filter);
-						i++;
-					}
-					ary += 8;
-				}
-			} else {
-				fprintf(fp, "\ttree -t xarray %lx -s cls_fl_filter\n", idr);
-			}
-next:
-			tcf_proto = read_pointer2(tcf_proto, "tcf_proto", "next");
-		} while (tcf_proto);
+		show_tcf_proto(tcf_proto, centos, print);
 	}
 
 	FREEBUF(ld->list_ptr);
