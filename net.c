@@ -23,7 +23,9 @@
 
 extern void print_struct(char *, ulong);
 void show_mlx(ulong net_addr);
-void show_tcf_proto(ulong tcf_proto, int centos, int print);
+void show_tcf_proto(ulong tcf_proto, int print);
+int centos72(void);
+int centos(void);
 void show_ingress(ulong net_addr);
 void show_hash(ulong a, char *opt_s, char *opt_m, int print);
 
@@ -2078,7 +2080,7 @@ void show_hash(ulong a, char *opt_s, char *opt_m, int print)
 	}
 }
 
-void show_tcf_proto(ulong tcf_proto, int centos, int print)
+void show_tcf_proto(ulong tcf_proto, int print)
 {
 	fprintf(fp, "list tcf_proto.next %lx -s tcf_proto\n", tcf_proto);
 
@@ -2097,7 +2099,7 @@ void show_tcf_proto(ulong tcf_proto, int centos, int print)
 
 		ulong idr = cls_fl_head + MEMBER_OFFSET("cls_fl_head", "handle_idr");
 
-		if (centos) {
+		if (centos()) {
 			int i, count;
 			ulong filter, ary;
 
@@ -2129,10 +2131,27 @@ next:
 	} while (tcf_proto);
 }
 
+int centos72(void)
+{
+	struct new_utsname *uts;
+	uts = &kt->utsname;
+	if (strncmp(uts->release, "3.10.0-327", 10) == 0)
+		return 1;
+	return 0;
+}
+
+int centos(void)
+{
+	struct new_utsname *uts;
+	uts = &kt->utsname;
+	if (strncmp(uts->release, "3.10.0", 6) == 0)
+		return 1;
+	return 0;
+}
+
 void show_ingress(ulong net_addr)
 {
 	struct list_data chain, *ld;
-	int centos = 0;
 	int print = 0;
 	int c, i, n;
 	ulong tcf_proto;
@@ -2148,19 +2167,23 @@ void show_ingress(ulong net_addr)
 		}
 	}
 
-	struct new_utsname *uts;
-	uts = &kt->utsname;
-	if (strncmp(uts->release, "3.10.0", 6) == 0) {
-		centos = 1;
-		fprintf(fp, "%s\n", uts->release);
-	}
-
 	ulong ingress_queue = read_pointer2(net_addr, "net_device", "ingress_queue");
 	fprintf(fp, "net_device.ingress_queue\n");
 	fprintf(fp, "netdev_queue  %lx\n", ingress_queue);
 
 	if (!ingress_queue)
 		return;
+
+	if (centos72()) {
+		fprintf(fp, "for centos 7.2\n");
+		ulong qdisc_sleep = read_pointer2(ingress_queue, "netdev_queue", "qdisc_sleeping");
+		fprintf(fp, "Qdisc %lx\n", qdisc_sleep);
+		ulong ingress_qdisc_data = qdisc_sleep + STRUCT_SIZE("Qdisc");
+		fprintf(fp, "ingress_qdisc_data %lx\n", ingress_qdisc_data);
+		tcf_proto = read_pointer1(qdisc_sleep + STRUCT_SIZE("Qdisc"));
+		show_tcf_proto(tcf_proto, print);
+		return;
+	}
 
 	// qdisc_priv()
 	ulong qdisc = read_pointer2(ingress_queue, "netdev_queue", "qdisc");
@@ -2207,7 +2230,7 @@ void show_ingress(ulong net_addr)
 		fprintf(fp, "====== chain %d ======\n", index);
 
 		tcf_proto = read_pointer2(tcf_chain, "tcf_chain", "filter_chain");
-		show_tcf_proto(tcf_proto, centos, print);
+		show_tcf_proto(tcf_proto, print);
 	}
 
 	FREEBUF(ld->list_ptr);
