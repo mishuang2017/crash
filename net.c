@@ -25,6 +25,7 @@ extern void print_struct(char *, ulong);
 void show_mlx(ulong net_addr);
 void show_tcf_proto(ulong tcf_proto, int print);
 int centos72(void);
+int kernel49(void);
 int centos(void);
 void show_ingress(ulong net_addr);
 void show_hash(ulong a, char *opt_s, char *opt_m, int print);
@@ -2084,6 +2085,9 @@ void show_tcf_proto(ulong tcf_proto, int print)
 {
 	fprintf(fp, "list tcf_proto.next %lx -s tcf_proto\n", tcf_proto);
 
+	if (!tcf_proto)
+		return;
+
 	unsigned short protocol;
 	unsigned int prio;
 	do {
@@ -2140,6 +2144,15 @@ int centos72(void)
 	return 0;
 }
 
+int kernel49(void)
+{
+	struct new_utsname *uts;
+	uts = &kt->utsname;
+	if (strncmp(uts->release, "4.9", 3) == 0)
+		return 1;
+	return 0;
+}
+
 int centos(void)
 {
 	struct new_utsname *uts;
@@ -2183,6 +2196,11 @@ void show_ingress(ulong net_addr)
 		tcf_proto = read_pointer1(qdisc_sleep + STRUCT_SIZE("Qdisc"));
 		show_tcf_proto(tcf_proto, print);
 		return;
+	} else if (kernel49()) {
+		fprintf(fp, "for kernel 4.9\n");
+		tcf_proto = read_pointer2(net_addr, "net_device", "ingress_cl_list");
+		show_tcf_proto(tcf_proto, print);
+		return;
 	}
 
 	// qdisc_priv()
@@ -2190,9 +2208,11 @@ void show_ingress(ulong net_addr)
 	ulong ingress_sched_data = qdisc + STRUCT_SIZE("Qdisc");
 	fprintf(fp, "ingress_sched_data  %lx\n", ingress_sched_data);
 	ulong tcf_block = read_pointer2(ingress_sched_data, "ingress_sched_data", "block");
+	fprintf(fp, "tcf_block  %lx\n", tcf_block);
+
 	if (!tcf_block)
 		return;
-	fprintf(fp, "tcf_block  %lx\n", tcf_block);
+
 	ulong cb_list = tcf_block + MEMBER_OFFSET("tcf_block", "cb_list");
 	fprintf(fp, "list -H %lx -s tcf_block_cb\n", cb_list);
 
