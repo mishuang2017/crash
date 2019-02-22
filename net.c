@@ -2272,6 +2272,9 @@ void show_mlx(ulong net_addr)
 
 	fprintf(fp, "mlx5e_priv  %lx\n", mlx5e_priv);
 
+	fprintf(fp, "list -H mlx5_dev_list -l mlx5_priv.dev_list -s mlx5_priv.name\n");
+	fprintf(fp, "list -H intf_list -l mlx5_interface.list -s mlx5_interface\n");
+
 	/*
 	 * struct mlx5e_vxlan {
 	 *   udp_port = 0x12b5
