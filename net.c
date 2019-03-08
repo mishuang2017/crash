@@ -2347,7 +2347,7 @@ void show_mlx(ulong net_addr)
 	ulong esw = read_pointer2(mlx5_priv, "mlx5_priv", "eswitch");
 	if (esw) {
 		fprintf(fp, "mlx5_eswitch  %lx\n", esw);
-		fprintf(fp, "mlx5_eswitch.manager_vport  %lx\n", esw);
+		fprintf(fp, "mlx5_eswitch.manager_vport,total_vports,enabled_vports,mode,nvports %lx\n", esw);
 
 		ulong vports = read_pointer2(esw, "mlx5_eswitch", "vports");
 		fprintf(fp, "mlx5_vport.vport  %lx\n", vports);
