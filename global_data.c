@@ -97,6 +97,7 @@ struct command_table_entry linux_command_table[] = {
 	{"net",	    cmd_net,     help_net,      REFRESH_TASK_TABLE},
 	{"flow",    cmd_flow,    help_net,      REFRESH_TASK_TABLE},
 	{"mlx",     cmd_mlx,     help_net,      REFRESH_TASK_TABLE},
+	{"mdev",    cmd_mdev,    help_net,      REFRESH_TASK_TABLE},
 	{"in",      cmd_ingress, help_net,      REFRESH_TASK_TABLE},
 	{"tc",      cmd_tc,      help_net,      REFRESH_TASK_TABLE},
 	{"array",   cmd_array,   help_net,      REFRESH_TASK_TABLE},

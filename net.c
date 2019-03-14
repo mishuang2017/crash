@@ -22,6 +22,8 @@
 #include <arpa/inet.h>
 
 extern void print_struct(char *, ulong);
+void show_eswitch(ulong esw, int cenots);
+void show_mdev(ulong mdev, int centos);
 void show_mlx(ulong net_addr);
 void show_tcf_proto(ulong tcf_proto, int print);
 int centos72(void);
@@ -2256,6 +2258,114 @@ void show_ingress(ulong net_addr)
 	FREEBUF(ld->list_ptr);
 }
 
+void show_eswitch(ulong esw, int centos)
+{
+	int i;
+
+	if (!esw)
+		return;
+
+	fprintf(fp, "mlx5_eswitch  %lx\n", esw);
+	fprintf(fp, "mlx5_eswitch.manager_vport,total_vports,enabled_vports,mode,nvports %lx\n", esw);
+
+	ulong vports = read_pointer2(esw, "mlx5_eswitch", "vports");
+	fprintf(fp, "mlx5_vport.vport  %lx\n", vports);
+	fprintf(fp, "mlx5_vport.vport  %lx\n", vports + STRUCT_SIZE("mlx5_vport"));
+	fprintf(fp, "mlx5_vport.vport  %lx\n", vports + STRUCT_SIZE("mlx5_vport") * 2);
+
+	ulong offloads = esw + MEMBER_OFFSET("mlx5_eswitch", "offloads");
+	fprintf(fp, "mlx5_esw_offload  %lx\n", offloads);
+
+	ulong vport_reps = read_pointer2(offloads, "mlx5_esw_offload", "vport_reps");
+	fprintf(fp, "mlx5_eswitch_rep %lx\n", vport_reps);
+	ulong rep_if = vport_reps + MEMBER_OFFSET("mlx5_eswitch_rep", "rep_if");
+	fprintf(fp, "mlx5_eswitch_rep_if %lx\n", rep_if);
+	ulong mlx5e_rep_priv = read_pointer2(rep_if, "mlx5_eswitch_rep_if", "priv");
+	fprintf(fp, "mlx5e_rep_priv %lx\n", mlx5e_rep_priv);
+
+	if (centos == 0) {
+		ulong uplink_priv = mlx5e_rep_priv + MEMBER_OFFSET("mlx5e_rep_priv", "uplink_priv");
+		ulong tc_ht = uplink_priv + MEMBER_OFFSET("mlx5_rep_uplink_priv", "tc_ht");
+		fprintf(fp, "hash %lx -s mlx5e_tc_flow -m node\n", tc_ht);
+	} else {
+		ulong tc_ht = mlx5e_rep_priv + MEMBER_OFFSET("mlx5e_rep_priv", "tc_ht");
+		fprintf(fp, "hash %lx -s mlx5e_tc_flow -m node\n", tc_ht);
+		ulong mf_ht = mlx5e_rep_priv + MEMBER_OFFSET("mlx5e_rep_priv", "mf_ht");
+		fprintf(fp, "hash %lx -s mlx5e_miniflow -m node\n", mf_ht);
+	}
+
+	fprintf(fp, "mlx5_esw_offload %lx\n", offloads);
+	fprintf(fp, "repeat -1 mlx5_esw_offload.num_flows -d %lx\n", offloads);
+
+	ulong vport_to_tir = read_pointer2(offloads, "mlx5_esw_offload", "ft_offloads");
+	fprintf(fp, "flow %lx\n", vport_to_tir);
+
+	ulong encap_tbl = offloads + MEMBER_OFFSET("mlx5_esw_offload", "encap_tbl");
+	ulong mod_hdr_tbl = offloads + MEMBER_OFFSET("mlx5_esw_offload", "mod_hdr_tbl");
+	fprintf(fp, "encap_tbl  %lx\n", encap_tbl);
+	fprintf(fp, "mod_hdr_tbl  %lx\n", mod_hdr_tbl);
+	for (i = 0; i < 256; i++) {
+		ulong t = read_pointer1(encap_tbl + i * 8);
+		if (t)
+			fprintf(fp, "list %lx -s mlx5e_encap_entry -l mlx5e_encap_entry.encap_hlist\n", t);
+	}
+
+	for (i = 0; i < 256; i++) {
+		ulong t = read_pointer1(mod_hdr_tbl + i * 8);
+		if (t)
+			fprintf(fp, "list %lx -s mlx5e_mod_hdr_entry -l mlx5e_mod_hdr_entry.mod_hdr_hlist\n", t);
+	}
+
+	ulong mlx5_eswitch_fdb = esw + MEMBER_OFFSET("mlx5_eswitch", "fdb_table");
+	fprintf(fp, "mlx5_eswitch_fdb  %lx\n\n", mlx5_eswitch_fdb);
+
+	ulong fdb_table = read_pointer1(mlx5_eswitch_fdb);
+	ulong fwd_table = read_pointer1(mlx5_eswitch_fdb + 8);
+	fprintf(fp, "flow %lx\n", fdb_table);
+	fprintf(fp, "fwd_table\n");
+	fprintf(fp, "flow %lx\n\n", fwd_table);
+	fprintf(fp, "flow -c %lx\n", fdb_table);
+	fprintf(fp, "repeat -1 flow -c %lx\n", fdb_table);
+	fprintf(fp, "flow %lx -d\n", fdb_table);
+}
+
+void show_mdev(ulong mdev, int centos)
+{
+	fprintf(fp, "mlx5_core_dev  %lx\n", mdev);
+
+	ulong mlx5_priv = mdev + MEMBER_OFFSET("mlx5_core_dev", "priv");
+	fprintf(fp, "mlx5_priv  %lx\n", mlx5_priv);
+
+	ulong mlx5_flow_steering = read_pointer2(mlx5_priv, "mlx5_priv", "steering");
+	fprintf(fp, "mlx5_flow_steering  %lx\n", mlx5_flow_steering);
+
+	ulong fdb_root_fs = read_pointer2(mlx5_flow_steering, "mlx5_flow_steering", "fdb_root_ns");
+	fprintf(fp, "fdb_root_fs\n");
+	fprintf(fp, "mlx5_flow_root_namespace  %lx\n", fdb_root_fs);
+	fprintf(fp, "list -H %lx -s fs_prio\n", fdb_root_fs + 0x10);
+
+	ulong root_fs = read_pointer2(mlx5_flow_steering, "mlx5_flow_steering", "root_ns");
+	fprintf(fp, "root_fs\n");
+	fprintf(fp, "mlx5_flow_root_namespace  %lx\n", root_fs);
+	fprintf(fp, "list -H %lx -s fs_prio.num_levels,start_level,prio,num_ft\n", root_fs + 0x10);
+
+	ulong mlx5_lag = read_pointer2(mlx5_priv, "mlx5_priv", "lag");
+	fprintf(fp, "mlx5_lag  %lx\n", mlx5_lag);
+
+	ulong fc_stats = mlx5_priv + MEMBER_OFFSET("mlx5_priv", "fc_stats");
+	fprintf(fp, "mlx5_fc_stats  %lx\n", fc_stats);
+	fprintf(fp, "tree -t rbtree -r mlx5_fc.node %lx -o 0 -s mlx5_fc.lastpackets,lastbytes\n", fc_stats);
+
+	ulong eq_table = mlx5_priv + MEMBER_OFFSET("mlx5_priv", "eq_table");
+	fprintf(fp, "mlx5_eq_table  %lx\n", eq_table);
+
+	ulong eqs_list = eq_table + MEMBER_OFFSET("mlx5_eq_table", "comp_eqs_list");
+	fprintf(fp, "list -H %lx -o mlx5_eq.list -s mlx5_eq\n", eqs_list);
+
+	ulong esw = read_pointer2(mlx5_priv, "mlx5_priv", "eswitch");
+	show_eswitch(esw, centos);
+}
+
 void show_mlx(ulong net_addr)
 {
 	ulong mlx5e_priv = net_addr + SIZE(net_device);
@@ -2313,102 +2423,7 @@ void show_mlx(ulong net_addr)
 	}
 
 	ulong mdev = read_pointer2(mlx5e_priv, "mlx5e_priv", "mdev");
-	fprintf(fp, "mlx5_core_dev  %lx\n", mdev);
-
-	ulong mlx5_priv = mdev + MEMBER_OFFSET("mlx5_core_dev", "priv");
-	fprintf(fp, "mlx5_priv  %lx\n", mlx5_priv);
-
-	ulong mlx5_flow_steering = read_pointer2(mlx5_priv, "mlx5_priv", "steering");
-	fprintf(fp, "mlx5_flow_steering  %lx\n", mlx5_flow_steering);
-
-	ulong fdb_root_fs = read_pointer2(mlx5_flow_steering, "mlx5_flow_steering", "fdb_root_ns");
-	fprintf(fp, "fdb_root_fs\n");
-	fprintf(fp, "mlx5_flow_root_namespace  %lx\n", fdb_root_fs);
-	fprintf(fp, "list -H %lx -s fs_prio\n", fdb_root_fs + 0x10);
-
-	ulong root_fs = read_pointer2(mlx5_flow_steering, "mlx5_flow_steering", "root_ns");
-	fprintf(fp, "root_fs\n");
-	fprintf(fp, "mlx5_flow_root_namespace  %lx\n", root_fs);
-	fprintf(fp, "list -H %lx -s fs_prio.num_levels,start_level,prio,num_ft\n", root_fs + 0x10);
-
-	ulong mlx5_lag = read_pointer2(mlx5_priv, "mlx5_priv", "lag");
-	fprintf(fp, "mlx5_lag  %lx\n", mlx5_lag);
-
-	ulong fc_stats = mlx5_priv + MEMBER_OFFSET("mlx5_priv", "fc_stats");
-	fprintf(fp, "mlx5_fc_stats  %lx\n", fc_stats);
-	fprintf(fp, "tree -t rbtree -r mlx5_fc.node %lx -o 0 -s mlx5_fc.lastpackets,lastbytes\n", fc_stats);
-
-	ulong eq_table = mlx5_priv + MEMBER_OFFSET("mlx5_priv", "eq_table");
-	fprintf(fp, "mlx5_eq_table  %lx\n", eq_table);
-
-	ulong eqs_list = eq_table + MEMBER_OFFSET("mlx5_eq_table", "comp_eqs_list");
-	fprintf(fp, "list -H %lx -o mlx5_eq.list -s mlx5_eq\n", eqs_list);
-
-	ulong esw = read_pointer2(mlx5_priv, "mlx5_priv", "eswitch");
-	if (esw) {
-		fprintf(fp, "mlx5_eswitch  %lx\n", esw);
-		fprintf(fp, "mlx5_eswitch.manager_vport,total_vports,enabled_vports,mode,nvports %lx\n", esw);
-
-		ulong vports = read_pointer2(esw, "mlx5_eswitch", "vports");
-		fprintf(fp, "mlx5_vport.vport  %lx\n", vports);
-		fprintf(fp, "mlx5_vport.vport  %lx\n", vports + STRUCT_SIZE("mlx5_vport"));
-		fprintf(fp, "mlx5_vport.vport  %lx\n", vports + STRUCT_SIZE("mlx5_vport") * 2);
-
-		ulong offloads = esw + MEMBER_OFFSET("mlx5_eswitch", "offloads");
-		fprintf(fp, "mlx5_esw_offload  %lx\n", offloads);
-
-		ulong vport_reps = read_pointer2(offloads, "mlx5_esw_offload", "vport_reps");
-		fprintf(fp, "mlx5_eswitch_rep %lx\n", vport_reps);
-		ulong rep_if = vport_reps + MEMBER_OFFSET("mlx5_eswitch_rep", "rep_if");
-		fprintf(fp, "mlx5_eswitch_rep_if %lx\n", rep_if);
-		ulong mlx5e_rep_priv = read_pointer2(rep_if, "mlx5_eswitch_rep_if", "priv");
-		fprintf(fp, "mlx5e_rep_priv %lx\n", mlx5e_rep_priv);
-
-		if (centos == 0) {
-			ulong uplink_priv = mlx5e_rep_priv + MEMBER_OFFSET("mlx5e_rep_priv", "uplink_priv");
-			ulong tc_ht = uplink_priv + MEMBER_OFFSET("mlx5_rep_uplink_priv", "tc_ht");
-			fprintf(fp, "hash %lx -s mlx5e_tc_flow -m node\n", tc_ht);
-		} else {
-			ulong tc_ht = mlx5e_rep_priv + MEMBER_OFFSET("mlx5e_rep_priv", "tc_ht");
-			fprintf(fp, "hash %lx -s mlx5e_tc_flow -m node\n", tc_ht);
-			ulong mf_ht = mlx5e_rep_priv + MEMBER_OFFSET("mlx5e_rep_priv", "mf_ht");
-			fprintf(fp, "hash %lx -s mlx5e_miniflow -m node\n", mf_ht);
-		}
-
-		fprintf(fp, "mlx5_esw_offload %lx\n", offloads);
-		fprintf(fp, "repeat -1 mlx5_esw_offload.num_flows -d %lx\n", offloads);
-
-		ulong vport_to_tir = read_pointer2(offloads, "mlx5_esw_offload", "ft_offloads");
-		fprintf(fp, "flow %lx\n", vport_to_tir);
-
-		ulong encap_tbl = offloads + MEMBER_OFFSET("mlx5_esw_offload", "encap_tbl");
-		ulong mod_hdr_tbl = offloads + MEMBER_OFFSET("mlx5_esw_offload", "mod_hdr_tbl");
-		fprintf(fp, "encap_tbl  %lx\n", encap_tbl);
-		fprintf(fp, "mod_hdr_tbl  %lx\n", mod_hdr_tbl);
-		for (i = 0; i < 256; i++) {
-			ulong t = read_pointer1(encap_tbl + i * 8);
-			if (t)
-				fprintf(fp, "list %lx -s mlx5e_encap_entry -l mlx5e_encap_entry.encap_hlist\n", t);
-		}
-
-		for (i = 0; i < 256; i++) {
-			ulong t = read_pointer1(mod_hdr_tbl + i * 8);
-			if (t)
-				fprintf(fp, "list %lx -s mlx5e_mod_hdr_entry -l mlx5e_mod_hdr_entry.mod_hdr_hlist\n", t);
-		}
-
-		ulong mlx5_eswitch_fdb = esw + MEMBER_OFFSET("mlx5_eswitch", "fdb_table");
-		fprintf(fp, "mlx5_eswitch_fdb  %lx\n\n", mlx5_eswitch_fdb);
-
-		ulong fdb_table = read_pointer1(mlx5_eswitch_fdb);
-		ulong fwd_table = read_pointer1(mlx5_eswitch_fdb + 8);
-		fprintf(fp, "flow %lx\n", fdb_table);
-		fprintf(fp, "fwd_table\n");
-		fprintf(fp, "flow %lx\n\n", fwd_table);
-		fprintf(fp, "flow -c %lx\n", fdb_table);
-		fprintf(fp, "repeat -1 flow -c %lx\n", fdb_table);
-		fprintf(fp, "flow %lx -d\n", fdb_table);
-	}
+	show_mdev(mdev, centos);
 
 	ulong  qdisc = read_pointer2(net_addr, "net_device", "qdisc");
 	fprintf(fp, "Qdisc  %lx\n", qdisc);
@@ -2463,6 +2478,33 @@ cmd_mlx(void)
 		addr = get_netdev_addr(name);
 	if (addr)
 		show_mlx(addr);
+}
+
+void
+cmd_mdev(void)
+{
+	char *ptr;
+	char *name = NULL;
+	ulong addr;
+	int centos = 0;
+
+	struct new_utsname *uts;
+
+	uts = &kt->utsname;
+	if (strncmp(uts->release, "3.10.0", 6) == 0) {
+		centos = 1;
+		fprintf(fp, "%s\n", uts->release);
+	}
+
+	name = args[1];
+	if (name == NULL) {
+		fprintf(fp, "name is NULL\n");
+		return;
+	}
+
+	addr = strtoul(name, &ptr, 16);
+	if (addr)
+		show_mdev(addr, centos);
 }
 
 void
