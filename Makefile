@@ -45,7 +45,7 @@ GDB_PATCH_FILES=gdb-7.6.patch gdb-7.6-ppc64le-support.patch gdb-7.6-proc_service
 INSTALLDIR=${DESTDIR}/usr/bin
 
 # LDFLAGS will be configured automatically by configure
-LDFLAGS=-llzo2
+LDFLAGS=
 
 GENERIC_HFILES=defs.h xen_hyper_defs.h xen_dom0.h
 MCORE_HFILES=va_server.h vas_crash.h
@@ -196,7 +196,7 @@ WARNING_OPTIONS=-Wall -O2 -Wstrict-prototypes -Wmissing-prototypes -fstack-prote
 #WARNING_ERROR=-Werror
 
 # TARGET_CFLAGS will be configured automatically by configure
-TARGET_CFLAGS= -DLZO
+TARGET_CFLAGS=
 
 CRASH_CFLAGS=-g -D${TARGET} ${TARGET_CFLAGS} ${GDB_FLAGS} ${CFLAGS}
 

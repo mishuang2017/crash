@@ -2483,8 +2483,13 @@ cmd_mlx(void)
 void
 cmd_pci(void)
 {
-	long mlx5_core_driver = symbol_value("mlx5_core_driver");
-	fprintf(fp, "mlx5_core_driver  %lx\n", mlx5_core_driver);
+	char *name = "mlx5_core_driver";
+
+	if (args[1] != NULL)
+		name = args[1];
+
+	long mlx5_core_driver = symbol_value(name);
+	fprintf(fp, "pci_driver  %lx\n", mlx5_core_driver);
 
 	long device_driver = mlx5_core_driver + MEMBER_OFFSET("pci_driver", "driver");
 	fprintf(fp, "device_driver  %lx\n", device_driver);
