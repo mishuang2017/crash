@@ -2481,6 +2481,25 @@ cmd_mlx(void)
 }
 
 void
+cmd_pci(void)
+{
+	long mlx5_core_driver = symbol_value("mlx5_core_driver");
+	fprintf(fp, "mlx5_core_driver  %lx\n", mlx5_core_driver);
+
+	long device_driver = mlx5_core_driver + MEMBER_OFFSET("pci_driver", "driver");
+	fprintf(fp, "device_driver  %lx\n", device_driver);
+
+	long driver_private = read_pointer2(device_driver, "device_driver", "p");
+	fprintf(fp, "driver_private  %lx\n", driver_private);
+
+	long klist_devices = driver_private + MEMBER_OFFSET("driver_private", "klist_devices");
+	fprintf(fp, "klist  %lx\n", klist_devices);
+
+	long k_list = klist_devices + MEMBER_OFFSET("klist", "k_list");
+	fprintf(fp, "list -H  %lx\n", k_list);
+}
+
+void
 cmd_mdev(void)
 {
 	char *ptr;
