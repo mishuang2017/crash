@@ -2504,6 +2504,100 @@ cmd_pci(void)
 	fprintf(fp, "list -H  %lx\n", k_list);
 }
 
+#if 0
+	# example to print list
+	struct list_data devices, *ld;
+	int i, n;
+
+	ld =  &devices;
+	BZERO(ld, sizeof(struct list_data));
+	ld->flags |= LIST_ALLOCATE;
+	ld->start = ld->end = k_list;
+	ld->list_head_offset = 0x70;
+	n = do_list(ld);
+	for (i = 1; i < n; i++) {
+		long device;
+
+		device = ld->list_ptr[i];
+		fprintf(fp, "device %lx\n", device);
+	}
+
+	FREEBUF(ld->list_ptr);
+#endif
+
+void
+cmd_bus(void)
+{
+	struct list_data devices, *ld;
+	char *name = "pci_bus_type";
+	int i, n, print = 1;
+
+	long pci_bus_type = symbol_value(name);
+	fprintf(fp, "pci_bus_type\n");
+	fprintf(fp, "bus_type %lx\n", pci_bus_type);
+
+	long p = read_pointer2(pci_bus_type, "bus_type", "p");
+	fprintf(fp, "subsys_private  %lx\n", p);
+
+	long klist_devices = p + MEMBER_OFFSET("subsys_private", "klist_devices");
+	fprintf(fp, "klist %lx\n", klist_devices);
+
+	long k_list = klist_devices + MEMBER_OFFSET("klist", "k_list");
+	fprintf(fp, "list -H %lx\n", k_list);
+
+	int offset = MEMBER_OFFSET("pci_driver", "driver");
+	long iwl_pci_driver = symbol_exists("iwl_pci_driver") ?
+				symbol_value("iwl_pci_driver") : 0;
+	long iwl_device_driver = iwl_pci_driver + offset;
+	long mlx5_core_driver = symbol_exists("mlx5_core_driver") ?
+				symbol_value("mlx5_core_driver") : 0;
+	long mlx5_device_driver = mlx5_core_driver + offset;
+
+	ld =  &devices;
+	BZERO(ld, sizeof(struct list_data));
+	ld->flags |= LIST_ALLOCATE;
+	ld->start = ld->end = k_list;
+	/*
+	 * bus_add_device()
+	 *	klist_add_tail(&dev->p->knode_bus, &bus->p->klist_devices);
+	*/
+	ld->list_head_offset = MEMBER_OFFSET("device_private", "knode_bus") +
+				+ MEMBER_OFFSET("klist_node", "n_node");
+	n = do_list(ld);
+	for (i = 1; i < n; i++) {
+		long private = ld->list_ptr[i];
+		long device = read_pointer2(private, "device_private", "device");
+		long driver_data = read_pointer2(device, "device", "driver_data");
+		long driver = read_pointer2(device, "device", "driver");
+		long kobj = device + MEMBER_OFFSET("device", "kobj");
+		long name = read_pointer2(kobj, "kobject", "name");
+		char buf[32];
+
+		if (driver == iwl_device_driver || driver == mlx5_device_driver) {
+			if (print && driver == iwl_device_driver)
+				fprintf(fp, "\niwl_pci_driver:\npci_driver %lx\n",
+					iwl_pci_driver);
+			if (print && driver == mlx5_device_driver)
+				fprintf(fp, "\nmlx5_core_driver:\npci_driver %lx\n",
+					mlx5_core_driver);
+			print = 0;
+			fprintf(fp, "\ndevice_private %lx\n", private);
+			fprintf(fp, "device %lx\n", device);
+			fprintf(fp, "device_driver %lx\n", driver);
+			fprintf(fp, "kobject %lx\n", kobj);
+			read_string(name, buf, 32);
+			fprintf(fp, "name %s\n", buf);
+			if (driver == iwl_device_driver)
+				fprintf(fp, "iwl_trans %lx\n", driver_data);
+			if (driver == mlx5_device_driver)
+				fprintf(fp, "mlx5_core_mdev %lx\n", driver_data);
+			fprintf(fp, "\n");
+		}
+	}
+
+	FREEBUF(ld->list_ptr);
+}
+
 void
 cmd_mdev(void)
 {

@@ -4864,6 +4864,7 @@ void cmd_net(void);          /* net.c */
 void cmd_flow(void);         /* net.c */
 void cmd_mlx(void);          /* net.c */
 void cmd_pci(void);          /* net.c */
+void cmd_bus(void);          /* net.c */
 void cmd_mdev(void);          /* net.c */
 void cmd_ingress(void);      /* net.c */
 void cmd_tc(void);           /* net.c */
