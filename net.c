@@ -2567,6 +2567,7 @@ cmd_bus(void)
 	for (i = 1; i < n; i++) {
 		long private = ld->list_ptr[i];
 		long device = read_pointer2(private, "device_private", "device");
+		long pci_dev = device - MEMBER_OFFSET("pci_dev", "dev");
 		long driver_data = read_pointer2(device, "device", "driver_data");
 		long driver = read_pointer2(device, "device", "driver");
 		long kobj = device + MEMBER_OFFSET("device", "kobj");
@@ -2583,6 +2584,7 @@ cmd_bus(void)
 			print = 0;
 			fprintf(fp, "\ndevice_private %lx\n", private);
 			fprintf(fp, "device %lx\n", device);
+			fprintf(fp, "pci_dev %lx\n", pci_dev);
 			fprintf(fp, "device_driver %lx\n", driver);
 			fprintf(fp, "kobject %lx\n", kobj);
 			read_string(name, buf, 32);
