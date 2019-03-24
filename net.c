@@ -2590,8 +2590,7 @@ cmd_bus(void)
 			if (driver == iwl_device_driver)
 				fprintf(fp, "iwl_trans %lx\n", driver_data);
 			if (driver == mlx5_device_driver)
-				fprintf(fp, "mlx5_core_mdev %lx\n", driver_data);
-			fprintf(fp, "\n");
+				fprintf(fp, "mlx5_core_dev %lx\n", driver_data);
 		}
 	}
 
