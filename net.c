@@ -2528,6 +2528,16 @@ cmd_pci(void)
 void
 cmd_bus(void)
 {
+	int centos = 0;
+
+	struct new_utsname *uts;
+
+	uts = &kt->utsname;
+	if (strncmp(uts->release, "3.10.0", 6) == 0) {
+		centos = 1;
+		fprintf(fp, "%s\n", uts->release);
+	}
+
 	struct list_data devices, *ld;
 	char *name = "pci_bus_type";
 	int i, n, print = 1;
@@ -2568,7 +2578,15 @@ cmd_bus(void)
 		long private = ld->list_ptr[i];
 		long device = read_pointer2(private, "device_private", "device");
 		long pci_dev = device - MEMBER_OFFSET("pci_dev", "dev");
-		long driver_data = read_pointer2(device, "device", "driver_data");
+		long driver_data;
+
+		if (centos == 0) {
+			driver_data = read_pointer2(device, "device", "driver_data");
+		} else {
+			p = read_pointer2(device, "device", "p");
+			driver_data = read_pointer2(p, "device_private", "driver_data");
+		}
+
 		long driver = read_pointer2(device, "device", "driver");
 		long kobj = device + MEMBER_OFFSET("device", "kobj");
 		long name = read_pointer2(kobj, "kobject", "name");
