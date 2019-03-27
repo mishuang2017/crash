@@ -2484,6 +2484,8 @@ void
 cmd_pci(void)
 {
 	char *name = "mlx5_core_driver";
+	struct list_data devices, *ld;
+	int i, n;
 
 	if (args[1] != NULL)
 		name = args[1];
@@ -2502,6 +2504,37 @@ cmd_pci(void)
 
 	long k_list = klist_devices + MEMBER_OFFSET("klist", "k_list");
 	fprintf(fp, "list -H  %lx\n", k_list);
+
+	ld =  &devices;
+	BZERO(ld, sizeof(struct list_data));
+	ld->flags |= LIST_ALLOCATE;
+	ld->start = ld->end = k_list;
+
+	ld->list_head_offset = MEMBER_OFFSET("device_private", "knode_driver") +
+				+ MEMBER_OFFSET("klist_node", "n_node");
+	n = do_list(ld);
+	for (i = 1; i < n; i++) {
+		long private = ld->list_ptr[i];
+		long device = read_pointer2(private, "device_private", "device");
+		long pci_dev = device - MEMBER_OFFSET("pci_dev", "dev");
+		long driver_data = read_pointer2(device, "device", "driver_data");
+		long driver = read_pointer2(device, "device", "driver");
+		long kobj = device + MEMBER_OFFSET("device", "kobj");
+		long name = read_pointer2(kobj, "kobject", "name");
+		char buf[32];
+
+		fprintf(fp, "\ndevice_private %lx\n", private);
+		fprintf(fp, "device %lx\n", device);
+		fprintf(fp, "pci_dev %lx\n", pci_dev);
+		fprintf(fp, "device_driver %lx\n", driver);
+		fprintf(fp, "kobject %lx\n", kobj);
+		read_string(name, buf, 32);
+		fprintf(fp, "name %s\n", buf);
+		fprintf(fp, "mlx5_core_dev %lx\n", driver_data);
+	}
+
+	FREEBUF(ld->list_ptr);
+
 }
 
 #if 0
