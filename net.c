@@ -2637,17 +2637,28 @@ cmd_bus(void)
 				fprintf(fp, "\nmlx5_core_driver:\npci_driver %lx\n",
 					mlx5_core_driver);
 			print = 0;
-			fprintf(fp, "\ndevice_private %lx\n", private);
-			fprintf(fp, "device %lx\n", device);
-			fprintf(fp, "pci_dev %lx\n", pci_dev);
-			fprintf(fp, "device_driver %lx\n", driver);
-			fprintf(fp, "kobject %lx\n", kobj);
-			read_string(name, buf, 32);
-			fprintf(fp, "name %s\n", buf);
-			if (driver == iwl_device_driver)
-				fprintf(fp, "iwl_trans %lx\n", driver_data);
-			if (driver == mlx5_device_driver)
-				fprintf(fp, "mlx5_core_dev %lx\n", driver_data);
+			if (driver) {
+				long driver_name = read_pointer2(driver, "device_driver", "name");
+				long mod_name = read_pointer2(driver, "device_driver", "mod_name");
+				read_string(name, buf, 32);
+				fprintf(fp, "\nname:\t\t%s\n", buf);
+
+				read_string(driver_name, buf, 32);
+				fprintf(fp, "driver_name:\t%s\n", buf);
+				read_string(mod_name, buf, 32);
+				fprintf(fp, "mod_name:\t%s\n", buf);
+
+				fprintf(fp, "device_private %lx\n", private);
+				fprintf(fp, "device %lx\n", device);
+				fprintf(fp, "pci_dev %lx\n", pci_dev);
+				fprintf(fp, "device_driver %lx\n", driver);
+
+				fprintf(fp, "kobject %lx\n", kobj);
+				if (driver == iwl_device_driver)
+					fprintf(fp, "iwl_trans %lx\n", driver_data);
+				if (driver == mlx5_device_driver)
+					fprintf(fp, "mlx5_core_dev %lx\n", driver_data);
+			}
 		}
 	}
 
