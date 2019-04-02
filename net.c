@@ -2562,6 +2562,10 @@ void
 cmd_bus(void)
 {
 	int centos = 0;
+	int all = 0;
+
+	if (args[1] != NULL && !strcmp(args[1], "all"))
+		all = 1;
 
 	struct new_utsname *uts;
 
@@ -2625,11 +2629,11 @@ cmd_bus(void)
 		long name = read_pointer2(kobj, "kobject", "name");
 		char buf[32];
 
-		if (driver == iwl_device_driver || driver == mlx5_device_driver) {
-			if (print && driver == iwl_device_driver)
+		if (all || driver == iwl_device_driver || driver == mlx5_device_driver) {
+			if (!all && print && driver == iwl_device_driver)
 				fprintf(fp, "\niwl_pci_driver:\npci_driver %lx\n",
 					iwl_pci_driver);
-			if (print && driver == mlx5_device_driver)
+			if (!all && print && driver == mlx5_device_driver)
 				fprintf(fp, "\nmlx5_core_driver:\npci_driver %lx\n",
 					mlx5_core_driver);
 			print = 0;
