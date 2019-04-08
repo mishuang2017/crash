@@ -2207,6 +2207,7 @@ void show_ingress(ulong net_addr)
 
 	// qdisc_priv()
 	ulong qdisc = read_pointer2(ingress_queue, "netdev_queue", "qdisc");
+	fprintf(fp, "Qdisc  %lx\n", qdisc);
 	ulong ingress_sched_data = qdisc + STRUCT_SIZE("Qdisc");
 	fprintf(fp, "ingress_sched_data  %lx\n", ingress_sched_data);
 	ulong tcf_block = read_pointer2(ingress_sched_data, "ingress_sched_data", "block");
