@@ -2217,7 +2217,7 @@ void show_ingress(ulong net_addr)
 		return;
 
 	ulong cb_list = tcf_block + MEMBER_OFFSET("tcf_block", "cb_list");
-	fprintf(fp, "list -H %lx -s tcf_block_cb\n", cb_list);
+	fprintf(fp, "list -H %lx -s tcf_block_cb -o tcf_block_cb.list\n", cb_list);
 
 	// struct net_device		->	ingress_queue
 	// struct netdev_queue		->	qdisc
