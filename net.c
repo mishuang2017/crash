@@ -22,8 +22,8 @@
 #include <arpa/inet.h>
 
 extern void print_struct(char *, ulong);
-void show_eswitch(ulong esw, int cenots);
-void show_mdev(ulong mdev, int centos);
+void show_eswitch(ulong esw);
+void show_mdev(ulong mdev);
 void show_mlx(ulong net_addr);
 void show_tcf_proto(ulong tcf_proto, int print);
 int centos72(void);
@@ -2258,7 +2258,7 @@ void show_ingress(ulong net_addr)
 	FREEBUF(ld->list_ptr);
 }
 
-void show_eswitch(ulong esw, int centos)
+void show_eswitch(ulong esw)
 {
 	int i;
 
@@ -2283,7 +2283,7 @@ void show_eswitch(ulong esw, int centos)
 	ulong mlx5e_rep_priv = read_pointer2(rep_if, "mlx5_eswitch_rep_if", "priv");
 	fprintf(fp, "mlx5e_rep_priv %lx\n", mlx5e_rep_priv);
 
-	if (centos == 0) {
+	if (!centos()) {
 		ulong uplink_priv = mlx5e_rep_priv + MEMBER_OFFSET("mlx5e_rep_priv", "uplink_priv");
 		ulong tc_ht = uplink_priv + MEMBER_OFFSET("mlx5_rep_uplink_priv", "tc_ht");
 		fprintf(fp, "hash %lx -s mlx5e_tc_flow -m node\n", tc_ht);
@@ -2329,7 +2329,7 @@ void show_eswitch(ulong esw, int centos)
 	fprintf(fp, "flow %lx -d\n", fdb_table);
 }
 
-void show_mdev(ulong mdev, int centos)
+void show_mdev(ulong mdev)
 {
 	fprintf(fp, "mlx5_core_dev  %lx\n", mdev);
 
@@ -2363,22 +2363,13 @@ void show_mdev(ulong mdev, int centos)
 	fprintf(fp, "list -H %lx -o mlx5_eq.list -s mlx5_eq\n", eqs_list);
 
 	ulong esw = read_pointer2(mlx5_priv, "mlx5_priv", "eswitch");
-	show_eswitch(esw, centos);
+	show_eswitch(esw);
 }
 
 void show_mlx(ulong net_addr)
 {
 	ulong mlx5e_priv = net_addr + SIZE(net_device);
-	int centos = 0;
 	int i;
-
-	struct new_utsname *uts;
-	uts = &kt->utsname;
-	if (strncmp(uts->release, "3.10.0", 6) == 0) {
-		centos = 1;
-		fprintf(fp, "%s\n", uts->release);
-	}
-
 
 	fprintf(fp, "mlx5e_priv  %lx\n", mlx5e_priv);
 
@@ -2423,7 +2414,7 @@ void show_mlx(ulong net_addr)
 	}
 
 	ulong mdev = read_pointer2(mlx5e_priv, "mlx5e_priv", "mdev");
-	show_mdev(mdev, centos);
+	show_mdev(mdev);
 
 	ulong  qdisc = read_pointer2(net_addr, "net_device", "qdisc");
 	fprintf(fp, "Qdisc  %lx\n", qdisc);
@@ -2561,19 +2552,10 @@ cmd_pci(void)
 void
 cmd_bus(void)
 {
-	int centos = 0;
 	int all = 0;
 
 	if (args[1] != NULL && !strcmp(args[1], "all"))
 		all = 1;
-
-	struct new_utsname *uts;
-
-	uts = &kt->utsname;
-	if (strncmp(uts->release, "3.10.0", 6) == 0) {
-		centos = 1;
-		fprintf(fp, "%s\n", uts->release);
-	}
 
 	struct list_data devices, *ld;
 	char *name = "pci_bus_type";
@@ -2617,7 +2599,7 @@ cmd_bus(void)
 		long pci_dev = device - MEMBER_OFFSET("pci_dev", "dev");
 		long driver_data;
 
-		if (centos == 0) {
+		if (!centos()) {
 			driver_data = read_pointer2(device, "device", "driver_data");
 		} else {
 			p = read_pointer2(device, "device", "p");
@@ -2671,15 +2653,6 @@ cmd_mdev(void)
 	char *ptr;
 	char *name = NULL;
 	ulong addr;
-	int centos = 0;
-
-	struct new_utsname *uts;
-
-	uts = &kt->utsname;
-	if (strncmp(uts->release, "3.10.0", 6) == 0) {
-		centos = 1;
-		fprintf(fp, "%s\n", uts->release);
-	}
 
 	name = args[1];
 	if (name == NULL) {
@@ -2689,7 +2662,7 @@ cmd_mdev(void)
 
 	addr = strtoul(name, &ptr, 16);
 	if (addr)
-		show_mdev(addr, centos);
+		show_mdev(addr);
 }
 
 void
@@ -2721,14 +2694,6 @@ cmd_tc(void)
 	int eg = 0;
 	int help = 0, print = 0;
 	ulong net_ns_p = symbol_value("init_net");
-	int centos = 0;
-
-	struct new_utsname *uts;
-	uts = &kt->utsname;
-	if (strncmp(uts->release, "3.10.0", 6) == 0) {
-		centos = 1;
-		fprintf(fp, "%s\n", uts->release);
-	}
 
 	while ((c = getopt(argcnt, args, "i:eph")) != EOF) {
 		switch (c) {
@@ -2774,7 +2739,7 @@ cmd_tc(void)
 	fprintf(fp, "struct net_generic %lx\n", gen);
 	ulong ptr = gen + MEMBER_OFFSET("net_generic", "ptr");
 	fprintf(fp, "ptr: %lx\n", ptr);
-	if (centos)
+	if (centos())
 		i--;
 	ulong tc_action_net = read_pointer1(ptr + i * 8);
 
