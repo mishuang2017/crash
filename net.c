@@ -23,6 +23,7 @@
 
 extern void print_struct(char *, ulong);
 void show_eswitch(ulong esw);
+void show_namespace(ulong mlx5_flow_steering);
 void show_mdev(ulong mdev);
 void show_mlx(ulong net_addr);
 void show_tcf_proto(ulong tcf_proto, int print);
@@ -2330,6 +2331,19 @@ void show_eswitch(ulong esw)
 	fprintf(fp, "flow %lx -d\n", fdb_table);
 }
 
+void show_namespace(ulong mlx5_flow_steering)
+{
+	ulong fdb_root_fs = read_pointer2(mlx5_flow_steering, "mlx5_flow_steering", "fdb_root_ns");
+	fprintf(fp, "fdb_root_fs\n");
+	fprintf(fp, "mlx5_flow_root_namespace  %lx\n", fdb_root_fs);
+	fprintf(fp, "list -H %lx -s fs_prio.num_levels,start_level,prio,num_ft,node.type\n", fdb_root_fs + 0x10);
+
+	ulong root_fs = read_pointer2(mlx5_flow_steering, "mlx5_flow_steering", "root_ns");
+	fprintf(fp, "root_fs\n");
+	fprintf(fp, "mlx5_flow_root_namespace  %lx\n", root_fs);
+	fprintf(fp, "list -H %lx -s fs_prio.num_levels,start_level,prio,num_ft,node.type\n", root_fs + 0x10);
+}
+
 void show_mdev(ulong mdev)
 {
 	fprintf(fp, "mlx5_core_dev  %lx\n", mdev);
@@ -2340,15 +2354,7 @@ void show_mdev(ulong mdev)
 	ulong mlx5_flow_steering = read_pointer2(mlx5_priv, "mlx5_priv", "steering");
 	fprintf(fp, "mlx5_flow_steering  %lx\n", mlx5_flow_steering);
 
-	ulong fdb_root_fs = read_pointer2(mlx5_flow_steering, "mlx5_flow_steering", "fdb_root_ns");
-	fprintf(fp, "fdb_root_fs\n");
-	fprintf(fp, "mlx5_flow_root_namespace  %lx\n", fdb_root_fs);
-	fprintf(fp, "list -H %lx -s fs_prio\n", fdb_root_fs + 0x10);
-
-	ulong root_fs = read_pointer2(mlx5_flow_steering, "mlx5_flow_steering", "root_ns");
-	fprintf(fp, "root_fs\n");
-	fprintf(fp, "mlx5_flow_root_namespace  %lx\n", root_fs);
-	fprintf(fp, "list -H %lx -s fs_prio.num_levels,start_level,prio,num_ft\n", root_fs + 0x10);
+	show_namespace(mlx5_flow_steering);
 
 	ulong mlx5_lag = read_pointer2(mlx5_priv, "mlx5_priv", "lag");
 	fprintf(fp, "mlx5_lag  %lx\n", mlx5_lag);
