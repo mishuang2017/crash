@@ -2299,7 +2299,7 @@ void show_eswitch(ulong esw)
 	fprintf(fp, "repeat -1 mlx5_esw_offload.num_flows -d %lx\n", offloads);
 
 	ulong vport_to_tir = read_pointer2(offloads, "mlx5_esw_offload", "ft_offloads");
-	fprintf(fp, "flow %lx\n", vport_to_tir);
+	fprintf(fp, "flow %lx # vport_to_tir flow table\n", vport_to_tir);
 
 	ulong encap_tbl = offloads + MEMBER_OFFSET("mlx5_esw_offload", "encap_tbl");
 	ulong mod_hdr_tbl = offloads + MEMBER_OFFSET("mlx5_esw_offload", "mod_hdr_tbl");
