@@ -2271,9 +2271,9 @@ void show_eswitch(ulong esw)
 	fprintf(fp, "mlx5_eswitch.manager_vport,total_vports,enabled_vports,mode,nvports %lx\n", esw);
 
 	ulong vports = read_pointer2(esw, "mlx5_eswitch", "vports");
-	fprintf(fp, "mlx5_vport.vport  %lx\n", vports);
-	fprintf(fp, "mlx5_vport.vport  %lx\n", vports + STRUCT_SIZE("mlx5_vport"));
-	fprintf(fp, "mlx5_vport.vport  %lx\n", vports + STRUCT_SIZE("mlx5_vport") * 2);
+	fprintf(fp, "mlx5_vport  %lx\n", vports);
+	fprintf(fp, "mlx5_vport  %lx\n", vports + STRUCT_SIZE("mlx5_vport"));
+	fprintf(fp, "mlx5_vport  %lx\n", vports + STRUCT_SIZE("mlx5_vport") * 2);
 
 	ulong offloads = esw + MEMBER_OFFSET("mlx5_eswitch", "offloads");
 	fprintf(fp, "mlx5_esw_offload  %lx\n", offloads);
