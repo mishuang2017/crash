@@ -2251,7 +2251,7 @@ void show_ingress(ulong net_addr)
 		tcf_chain = ld->list_ptr[i];
 		fprintf(fp, "\ntcf_chain %lx\n", tcf_chain);
 		index = read_u32(tcf_chain, "tcf_chain", "index");
-		fprintf(fp, "====== chain %d ======\n", index);
+		fprintf(fp, "====== chain %x ======\n", index);
 
 		tcf_proto = read_pointer2(tcf_chain, "tcf_chain", "filter_chain");
 		show_tcf_proto(tcf_proto, print);
