@@ -2479,6 +2479,17 @@ cmd_mlx(void)
 }
 
 void
+cmd_miniflow(void)
+{
+	long table = symbol_value("_flowtable");
+	table = read_pointer1(table);
+	fprintf(fp, "flow_offload_table %lx\n", table);
+
+	long rht = table + MEMBER_OFFSET("flow_offload_table", "rhashtable");
+	fprintf(fp, "hash %lx -s flow_offload -m node\n", rht);
+}
+
+void
 cmd_pci(void)
 {
 	char *name = "mlx5_core_driver";

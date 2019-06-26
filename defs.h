@@ -4863,6 +4863,7 @@ void cmd_gdb(void);          /* gdb_interface.c */
 void cmd_net(void);          /* net.c */
 void cmd_flow(void);         /* net.c */
 void cmd_mlx(void);          /* net.c */
+void cmd_miniflow(void);     /* net.c */
 void cmd_pci(void);          /* net.c */
 void cmd_bus(void);          /* net.c */
 void cmd_mdev(void);          /* net.c */
