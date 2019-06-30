@@ -31,7 +31,7 @@ int centos72(void);
 int kernel49(void);
 int centos(void);
 void show_ingress(ulong net_addr);
-void show_hash(ulong a, char *opt_s, char *opt_m, int print);
+void show_hash(ulong a, char *opt_s, char *opt_m, int print, int offset);
 
 /*
  *  Cache values we need that can change based on OS version, or any other
@@ -2020,8 +2020,9 @@ cmd_hash(void)
 	char *opt_s = NULL;     /* struct */
 	char *opt_m = NULL;     /* member */
 	int print = 0;
+	int offset = -1;
 
-	while ((c = getopt(argcnt, args, "a:s:m:tp")) != EOF) {
+	while ((c = getopt(argcnt, args, "a:s:m:tpo:")) != EOF) {
 		switch (c) {
 		case 't':       /* for testing */
 			show = 1;
@@ -2036,6 +2037,9 @@ cmd_hash(void)
 		case 'p':
 			print = 1;
 			break;
+		case 'o':
+			offset = atoi(optarg);
+			break;
 		default:
 			return;
 		}
@@ -2043,21 +2047,20 @@ cmd_hash(void)
 
 	addr = args[optind];
 	if (!addr || !opt_s || !opt_m) {
-		fprintf(fp, "hash <address of tbl> -s struct -m member\n");
+		fprintf(fp, "hash <address of tbl> -s struct -m member -o offset\n");
 		return;
 	}
 
 	if (show != 1)
 		a = strtoul(addr, &ptr, 16);
 
-	show_hash(a, opt_s, opt_m, print);
+	show_hash(a, opt_s, opt_m, print, offset);
 }
 
-void show_hash(ulong a, char *opt_s, char *opt_m, int print)
+void show_hash(ulong a, char *opt_s, char *opt_m, int print, int offset)
 {
 	int i = 0;
 	ulong rhash_head;
-	int offset = 0;
 
 	a = read_pointer1(a);
 	fprintf(fp, "bucket_table %lx -x\n", a);
@@ -2065,7 +2068,8 @@ void show_hash(ulong a, char *opt_s, char *opt_m, int print)
 	unsigned int size = read_pointer2(a, "bucket_table", "size");
 	ulong buckets = a + MEMBER_OFFSET("bucket_table", "buckets");
 
-	offset = MEMBER_OFFSET(opt_s, opt_m);
+	if (offset < 0)
+		offset = MEMBER_OFFSET(opt_s, opt_m);
 
 	fprintf(fp, "size %x, offset %x\n", size, offset);
 	fprintf(fp, "buckets %lx\n", buckets);
@@ -2486,7 +2490,7 @@ cmd_miniflow(void)
 	fprintf(fp, "flow_offload_table %lx\n", table);
 
 	long rht = table + MEMBER_OFFSET("flow_offload_table", "rhashtable");
-	fprintf(fp, "hash %lx -s flow_offload -m node\n", rht);
+	fprintf(fp, "hash %lx -s flow_offload -m node -o 0\n", rht);
 }
 
 void
@@ -2766,10 +2770,10 @@ cmd_tc(void)
 		fprintf(fp, "tcf_action_net %lx\n", tc_action_net);
 		fprintf(fp, "list -H cb_list -s tcf_action_egdev_cb\n");
 		fprintf(fp, "================================\n");
-		show_hash(tc_action_net, "tcf_action_egdev", "ht_node", 0);
+		show_hash(tc_action_net, "tcf_action_egdev", "ht_node", 0, -1);
 		if (print) {
 			fprintf(fp, "================================\n");
-			show_hash(tc_action_net, "tcf_action_egdev", "ht_node", 1);
+			show_hash(tc_action_net, "tcf_action_egdev", "ht_node", 1, -1);
 		}
 	} else {
 		fprintf(fp, "tc_action_net %lx\n", tc_action_net);
