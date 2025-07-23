@@ -3111,3 +3111,166 @@ cmd_flow(void)
 	if (addr)
 		show_flow(addr);
 }
+
+void show_chains_tables(ulong net_addr)
+{
+	ulong mlx5e_priv, mdev, mlx5_priv, esw, chains_priv;
+	ulong chains_ht, prios_ht;
+	int i = 0;
+	ulong rhash_head, offset;
+
+	if (!net_addr) {
+		fprintf(fp, "Invalid net_device address\n");
+		return;
+	}
+
+	fprintf(fp, "=== MLX5 Flow Tables from Chains ===\n");
+	fprintf(fp, "net_device %lx\n", net_addr);
+
+	// Navigate to mlx5e_priv
+	mlx5e_priv = net_addr + ALIGN(SIZE(net_device), 32);
+	fprintf(fp, "mlx5e_priv %lx\n", mlx5e_priv);
+
+	// Get mdev from mlx5e_priv
+	mdev = read_pointer2(mlx5e_priv, "mlx5e_priv", "mdev");
+	if (!mdev) {
+		fprintf(fp, "Failed to get mdev\n");
+		return;
+	}
+	fprintf(fp, "mlx5_core_dev %lx\n", mdev);
+
+	// Get mlx5_priv from mdev
+	mlx5_priv = mdev + MEMBER_OFFSET("mlx5_core_dev", "priv");
+	fprintf(fp, "mlx5_priv %lx\n", mlx5_priv);
+
+	// Get eswitch from mlx5_priv
+	esw = read_pointer2(mlx5_priv, "mlx5_priv", "eswitch");
+	if (!esw) {
+		fprintf(fp, "No eswitch found\n");
+		return;
+	}
+	fprintf(fp, "mlx5_eswitch %lx\n", esw);
+
+	// Debug structure offsets first
+	fprintf(fp, "Debug MEMBER_OFFSET(mlx5_eswitch, fdb_table) = %lx\n",
+		MEMBER_OFFSET("mlx5_eswitch", "fdb_table"));
+	fprintf(fp, "Debug MEMBER_OFFSET(mlx5_eswitch_fdb, offloads) = %lx\n",
+		MEMBER_OFFSET("mlx5_eswitch_fdb", "offloads"));
+	fprintf(fp, "Debug MEMBER_OFFSET(offloads_fdb, esw_chains_priv) = %lx\n",
+		MEMBER_OFFSET("offloads_fdb", "esw_chains_priv"));
+
+	// Get chains_priv from eswitch fdb_table.offloads.esw_chains_priv
+	ulong fdb_table = esw + MEMBER_OFFSET("mlx5_eswitch", "fdb_table");
+	fprintf(fp, "mlx5_eswitch_fdb %lx\n", fdb_table);
+
+	ulong fdb_offloads = fdb_table + MEMBER_OFFSET("mlx5_eswitch_fdb", "offloads");
+	fprintf(fp, "offloads_fdb %lx\n", fdb_offloads);
+
+	// Read esw_chains_priv from offloads_fdb structure
+	ulong esw_chains_priv_offset = MEMBER_OFFSET("offloads_fdb", "esw_chains_priv");
+	fprintf(fp, "Reading from address %lx + %lx = %lx\n",
+		fdb_offloads, esw_chains_priv_offset, fdb_offloads + esw_chains_priv_offset);
+
+	chains_priv = read_pointer1(fdb_offloads + esw_chains_priv_offset);
+	if (!chains_priv) {
+		fprintf(fp, "No esw_chains_priv found\n");
+		return;
+	}
+	fprintf(fp, "mlx5_fs_chains %lx\n", chains_priv);
+
+	// Dump chains_ht hash table
+	fprintf(fp, "\n=== Chains Hash Table ===\n");
+	chains_ht = chains_priv + MEMBER_OFFSET("mlx5_fs_chains", "chains_ht");
+	fprintf(fp, "rhashtable %lx\n", chains_ht);
+
+	// Read the bucket table address
+	ulong chains_bucket_table = read_pointer1(chains_ht);
+	if (chains_bucket_table) {
+		fprintf(fp, "bucket_table %lx\n", chains_bucket_table);
+
+		unsigned int chains_size = read_pointer2(chains_bucket_table, "bucket_table", "size");
+		ulong chains_buckets = chains_bucket_table + MEMBER_OFFSET("bucket_table", "buckets");
+		offset = MEMBER_OFFSET("fs_chain", "node");
+
+		fprintf(fp, "size %x, offset %lx\n", chains_size, offset);
+
+		for (i = 0; i < chains_size; i++) {
+			rhash_head = read_pointer1(chains_buckets + i * 8);
+			if (!rhash_head)
+				continue;
+			while (1) {
+				if (rhash_head & 1)
+					break;
+
+				ulong fs_chain = rhash_head - offset;
+				fprintf(fp, "fs_chain %lx\n", fs_chain);
+
+				// Iterate through prios_list
+				struct list_data prio_list, *ld_prio;
+				int prio_count, j;
+
+				ld_prio = &prio_list;
+				BZERO(ld_prio, sizeof(struct list_data));
+				ld_prio->flags |= LIST_ALLOCATE;
+				ld_prio->start = ld_prio->end = fs_chain + MEMBER_OFFSET("fs_chain", "prios_list");
+				ld_prio->list_head_offset = MEMBER_OFFSET("prio", "list");
+
+				prio_count = do_list(ld_prio);
+				fprintf(fp, "  prios_list contains %d entries\n", prio_count - 1);
+
+				for (j = 1; j < prio_count; j++) {
+					ulong prio_addr = ld_prio->list_ptr[j];
+					ulong key_addr = prio_addr + MEMBER_OFFSET("prio", "key");
+					unsigned int chain = read_u32(key_addr, "prio_key", "chain");
+					unsigned int prio_val = read_u32(key_addr, "prio_key", "prio");
+					unsigned int level = read_u32(key_addr, "prio_key", "level");
+					fprintf(fp, "  prio %lx (chain=%u, prio=%u, level=%u)\n", prio_addr, chain, prio_val, level);
+
+					// Get flow table from prio
+					ulong flow_table = read_pointer2(prio_addr, "prio", "ft");
+					if (flow_table) {
+						fprintf(fp, "    -> mlx5_flow_table %lx\n", flow_table);
+
+						// Print some basic flow table info
+						ulong table_id = read_u32(flow_table, "mlx5_flow_table", "id");
+						ulong level = read_u32(flow_table, "mlx5_flow_table", "level");
+						fprintf(fp, "       table_id %lx, level %lx\n", table_id, level);
+					}
+				}
+
+				FREEBUF(ld_prio->list_ptr);
+				rhash_head = read_pointer1(rhash_head);
+			}
+		}
+	}
+
+	fprintf(fp, "\n=== Summary Commands ===\n");
+	fprintf(fp, "# To dump chains_ht\n");
+	fprintf(fp, "hash %lx -s fs_chain -m node\n", chains_ht);
+}
+
+void
+cmd_chains(void)
+{
+	char *ptr;
+	char *name = NULL;
+	ulong addr;
+
+	name = args[1];
+	if (name == NULL) {
+		fprintf(fp, "Usage chains <net_device_name_or_address>\n");
+		fprintf(fp, "Example chains eth0\n");
+		fprintf(fp, "Example chains ffff888012345000\n");
+		return;
+	}
+
+	if (strstr(name, "ffff88"))
+		addr = strtoul(name, &ptr, 16);
+	else
+		addr = get_netdev_addr(name);
+
+	if (addr)
+		show_chains_tables(addr);
+	else
+		fprintf(fp, "Failed to find net_device for %s\n", name);
+}

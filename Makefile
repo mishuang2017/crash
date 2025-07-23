@@ -24,7 +24,7 @@ PROGRAM=crash
 # Supported targets: X86 ALPHA PPC IA64 PPC64 SPARC64
 # TARGET and GDB_CONF_FLAGS will be configured automatically by configure
 #
-TARGET=
+TARGET=X86_64
 GDB_CONF_FLAGS=
 
 ARCH := $(shell uname -m | sed -e s/i.86/i386/ -e s/sun4u/sparc64/ -e s/arm.*/arm/ -e s/sa110/arm/)
@@ -35,10 +35,10 @@ endif
 #
 # GDB, GDB_FILES, GDB_OFILES and GDB_PATCH_FILES will be configured automatically by configure 
 #
-GDB=
-GDB_FILES=
-GDB_OFILES=
-GDB_PATCH_FILES=
+GDB=gdb-10.2
+GDB_FILES=${GDB_10.2_FILES}
+GDB_OFILES=${GDB_10.2_OFILES}
+GDB_PATCH_FILES=gdb-10.2.patch
 
 #
 # Default installation directory
@@ -46,7 +46,7 @@ GDB_PATCH_FILES=
 INSTALLDIR=${DESTDIR}/usr/bin
 
 # LDFLAGS will be configured automatically by configure
-LDFLAGS=
+LDFLAGS=-llzo2
 
 GENERIC_HFILES=defs.h xen_hyper_defs.h xen_dom0.h
 MCORE_HFILES=va_server.h vas_crash.h
@@ -194,7 +194,7 @@ GDB_10.2_OFILES=${GDB}/gdb/symtab.o crash_target.o
 # 
 # GDB_FLAGS is passed up from the gdb Makefile.
 #
-GDB_FLAGS=
+GDB_FLAGS=-DGDB_10_2
 
 #
 # WARNING_OPTIONS and WARNING_ERROR are both applied on a per-file basis. 
@@ -207,11 +207,11 @@ GDB_FLAGS=
 #WARNING_ERROR=-Werror
 
 # TARGET_CFLAGS will be configured automatically by configure
-TARGET_CFLAGS=
+TARGET_CFLAGS= -DLZO
 
 CRASH_CFLAGS=-g -D${TARGET} ${TARGET_CFLAGS} ${GDB_FLAGS} ${CFLAGS}
 
-GPL_FILES=
+GPL_FILES=COPYING3
 TAR_FILES=${SOURCE_FILES} Makefile ${GPL_FILES} README .rh_rpm_package crash.8 \
 	${EXTENSION_SOURCE_FILES} ${MEMORY_DRIVER_FILES}
 CSCOPE_FILES=${SOURCE_FILES}
