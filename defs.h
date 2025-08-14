@@ -1576,6 +1576,15 @@ struct offset_table {                    /* stash of commonly-used offsets */
 	long net_device_ip_ptr;
 	long net_device_dev_list;
 	long net_dev_base_head;
+	long ib_device_name;
+	long ib_device_node_type;
+	long ib_device_node_guid;
+	long ib_device_ports;
+	long ib_device_port_list;
+	long ib_device_list;
+	long ib_port_attr_state;
+	long ib_port_attr_port_num;
+	long ib_port_attr_guid;
 	long device_next;
 	long device_name;
 	long device_type;
@@ -2326,6 +2335,8 @@ struct size_table {         /* stash of commonly-used sizes */
 	long __wait_queue;
 	long device;
 	long net_device;
+	long ib_device;
+	long ib_port_attr;
 	long sock;
 	long signal_struct;
 	long sigpending_signal;
