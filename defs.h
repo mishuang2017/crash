@@ -5503,6 +5503,21 @@ void cmd_dev(void);          /* dev.c */
 void cmd_gdb(void);          /* gdb_interface.c */
 void cmd_net(void);          /* net.c */
 void cmd_extend(void);       /* extensions.c */
+
+/* cmi@nvidia.com */
+void cmd_flow(void);         /* net.c */
+void cmd_table(void);        /* net.c */
+void cmd_mlx(void);          /* net.c */
+void cmd_miniflow(void);     /* net.c */
+void cmd_pci(void);          /* net.c */
+void cmd_bus(void);          /* net.c */
+void cmd_mdev(void);         /* net.c */
+void cmd_ingress(void);      /* net.c */
+void cmd_tc(void);           /* net.c */
+void cmd_array(void);        /* net.c */
+void cmd_rtnl(void);         /* net.c */
+void cmd_hash(void);         /* net.c */
+
 #if defined(S390) || defined(S390X)
 void cmd_s390dbf(void);
 #endif

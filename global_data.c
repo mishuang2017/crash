@@ -122,6 +122,19 @@ struct command_table_entry linux_command_table[] = {
 	{"waitq",   cmd_waitq,   help_waitq,   REFRESH_TASK_TABLE},
 	{"whatis",  cmd_whatis,  help_whatis,  0},
 	{"wr",      cmd_wr,      help_wr,      0},
+/* cmi@nvidia.com */
+        {"flow",    cmd_flow,    help_net,      REFRESH_TASK_TABLE},
+        {"table",   cmd_table,   help_net,      REFRESH_TASK_TABLE},
+        {"mlx",     cmd_mlx,     help_net,      REFRESH_TASK_TABLE},
+        {"miniflow",cmd_miniflow,help_net,      REFRESH_TASK_TABLE},
+        {"pci",     cmd_pci,     help_net,      REFRESH_TASK_TABLE},
+        {"bus",     cmd_bus,     help_net,      REFRESH_TASK_TABLE},
+        {"mdev",    cmd_mdev,    help_net,      REFRESH_TASK_TABLE},
+        {"in",      cmd_ingress, help_net,      REFRESH_TASK_TABLE},
+        {"tc",      cmd_tc,      help_net,      REFRESH_TASK_TABLE},
+        {"array",   cmd_array,   help_net,      REFRESH_TASK_TABLE},
+        {"rtnl",    cmd_rtnl,    help_net,      REFRESH_TASK_TABLE},
+        {"hash",    cmd_hash,    help_net,      REFRESH_TASK_TABLE},
 #if defined(S390) || defined(S390X)
         {"s390dbf", cmd_s390dbf, help_s390dbf, 0},
 #endif

@@ -176,7 +176,8 @@ static const struct module_tag module_tag[] = {
 
 static void whatis_datatype(char *, ulong, FILE *);
 static void whatis_variable(struct syment *);
-static void print_struct(char *, ulong);
+/* cmi@nvidia.com */
+void print_struct(char *, ulong);
 static void print_union(char *, ulong);
 static void dump_datatype_member(FILE *, struct datatype_member *);
 static void dump_datatype_flags(ulong, FILE *);
@@ -8757,7 +8758,8 @@ is_datatype_command(void)
 /*
  *  Given a structure name and an address, have gdb do most of the work.
  */
-static void
+/* cmi@nvidia.com */
+void
 print_struct(char *s, ulong addr)
 {
 	char buf[BUFSIZE];
