@@ -5508,6 +5508,7 @@ void cmd_extend(void);       /* extensions.c */
 void cmd_flow(void);         /* net.c */
 void cmd_table(void);        /* net.c */
 void cmd_mlx(void);          /* net.c */
+void cmd_chains(void);       /* net.c */
 void cmd_miniflow(void);     /* net.c */
 void cmd_pci(void);          /* net.c */
 void cmd_bus(void);          /* net.c */

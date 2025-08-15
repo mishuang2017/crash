@@ -126,6 +126,7 @@ struct command_table_entry linux_command_table[] = {
         {"flow",    cmd_flow,    help_net,      REFRESH_TASK_TABLE},
         {"table",   cmd_table,   help_net,      REFRESH_TASK_TABLE},
         {"mlx",     cmd_mlx,     help_net,      REFRESH_TASK_TABLE},
+        {"chains",  cmd_chains,  help_net,      REFRESH_TASK_TABLE},
         {"miniflow",cmd_miniflow,help_net,      REFRESH_TASK_TABLE},
         {"pci",     cmd_pci,     help_net,      REFRESH_TASK_TABLE},
         {"bus",     cmd_bus,     help_net,      REFRESH_TASK_TABLE},
